@@ -31,7 +31,9 @@ export default function ShadowingApp() {
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1.0);
-  const [isLooping, setIsLooping] = useState<boolean>(false);
+  
+  type LoopMode = 'none' | 'all' | 'one';
+  const [loopMode, setLoopMode] = useState<LoopMode>('none');
   
   type AppMode = 'normal' | 'dictation' | 'shadowing';
   const [appMode, setAppMode] = useState<AppMode>('normal');
@@ -56,7 +58,7 @@ export default function ShadowingApp() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeSentenceRef = useRef<Sentence | null>(null);
-  const isLoopingRef = useRef<boolean>(isLooping);
+  const loopModeRef = useRef<LoopMode>(loopMode);
   const appModeRef = useRef<AppMode>(appMode);
   const completedSentencesRef = useRef<Record<number, boolean>>(completedSentences);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -67,8 +69,8 @@ export default function ShadowingApp() {
 
   // Sync ref with state for the animation frame
   useEffect(() => {
-    isLoopingRef.current = isLooping;
-  }, [isLooping]);
+    loopModeRef.current = loopMode;
+  }, [loopMode]);
 
   useEffect(() => {
     appModeRef.current = appMode;
@@ -97,7 +99,7 @@ export default function ShadowingApp() {
         }
       } else if (e.code === 'KeyL' || e.code === 'KeyR') {
         e.preventDefault();
-        setIsLooping(prev => !prev);
+        setLoopMode(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none');
       }
     };
 
@@ -208,6 +210,7 @@ export default function ShadowingApp() {
   const handleSkip = (sentence: Sentence) => {
     setCompletedSentences(prev => ({ ...prev, [sentence.id]: true }));
     if (audioRef.current) {
+      audioRef.current.currentTime = sentence.end + 0.05;
       audioRef.current.play().catch(() => {});
     }
   };
@@ -456,6 +459,8 @@ export default function ShadowingApp() {
         const currentSentence = transcript.find(s => time >= s.start && time < s.end);
         if (currentSentence) {
           activeSentenceRef.current = currentSentence;
+        } else {
+          activeSentenceRef.current = null;
         }
 
         // Handle Dictation and Looping
@@ -463,12 +468,12 @@ export default function ShadowingApp() {
           const isCompleted = completedSentencesRef.current[activeSentenceRef.current.id];
           
           if (time >= activeSentenceRef.current.end - 0.05) {
-            if (isLoopingRef.current) {
+            if (loopModeRef.current === 'one') {
               if (!isLoopDelayingRef.current) {
                 isLoopDelayingRef.current = true;
                 audioRef.current.pause();
                 loopTimeoutRef.current = setTimeout(() => {
-                  if (audioRef.current && isLoopingRef.current && activeSentenceRef.current) {
+                  if (audioRef.current && loopModeRef.current === 'one' && activeSentenceRef.current) {
                     audioRef.current.currentTime = activeSentenceRef.current.start;
                     audioRef.current.play().catch(() => {});
                   }
@@ -573,9 +578,7 @@ export default function ShadowingApp() {
       }
       
       if (audioRef.current) {
-        if (isLoopingRef.current) {
-          audioRef.current.currentTime = sentence.start;
-        }
+        audioRef.current.currentTime = sentence.end + 0.05;
         audioRef.current.play().catch(() => {});
       }
     }
@@ -828,8 +831,13 @@ export default function ShadowingApp() {
           <audio 
             ref={audioRef} 
             src={audioURL} 
+            loop={loopMode === 'all'}
             onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-            onEnded={() => setIsPlaying(false)}
+            onEnded={() => {
+              if (loopMode !== 'all') {
+                setIsPlaying(false);
+              }
+            }}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
           />
@@ -903,12 +911,14 @@ export default function ShadowingApp() {
 
                 {/* Loop Control */}
                 <button 
-                  onClick={() => setIsLooping(!isLooping)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isLooping ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-transparent'}`}
-                  title="Loop Current Sentence (Shortcut: L)"
+                  onClick={() => setLoopMode(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${loopMode !== 'none' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-transparent'}`}
+                  title="Loop Mode (Shortcut: L)"
                 >
-                  {isLooping ? <Repeat1 className="w-5 h-5" /> : <Repeat className="w-5 h-5" />}
-                  <span className="font-medium hidden sm:inline">Loop</span>
+                  {loopMode === 'one' ? <Repeat1 className="w-5 h-5" /> : <Repeat className={`w-5 h-5 ${loopMode === 'all' ? 'text-green-400' : ''}`} />}
+                  <span className="font-medium hidden sm:inline">
+                    {loopMode === 'none' ? 'Loop' : loopMode === 'all' ? 'Loop All' : 'Loop One'}
+                  </span>
                 </button>
 
               </div>
