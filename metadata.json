@@ -1,0 +1,5 @@
+{
+  "name": "German Shadowing App",
+  "description": "A web app for shadowing practice with synchronized audio and transcript.",
+  "requestFramePermissions": ["microphone"]
+}
