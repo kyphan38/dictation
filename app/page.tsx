@@ -406,7 +406,7 @@ export default function NodaApp() {
             )}
 
             {uploadMode === 'lesson' && (
-              <NewLessonModal onClose={closeUploadModal} onSubmit={handleLessonCreated} />
+              <NewLessonModal onClose={closeUploadModal} onSubmit={handleLessonCreated} isGeneratingIPA={isGeneratingIPA} />
             )}
 
             {uploadMode === 'deck' && (

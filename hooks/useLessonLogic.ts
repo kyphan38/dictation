@@ -192,7 +192,6 @@ export function useLessonLogic(
     if (!sentencesToUse.length) return true;
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
     if (!apiKey) {
-      console.error('IPA: NEXT_PUBLIC_GEMINI_API_KEY is missing (restart dev server after changing .env.local)');
       return false;
     }
     const lang = langOverride ?? recognitionLang;
@@ -261,8 +260,7 @@ export function useLessonLogic(
         loadLessonsList();
       }
       return true;
-    } catch (error) {
-      console.error('Failed to generate IPA', error);
+    } catch {
       return false;
     } finally {
       setIsGeneratingIPA(false);

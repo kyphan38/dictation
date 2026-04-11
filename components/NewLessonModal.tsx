@@ -12,6 +12,7 @@ interface LessonData {
 interface NewLessonModalProps {
   onClose: () => void;
   onSubmit: (data: LessonData) => void;
+  isGeneratingIPA: boolean;
 }
 
 function isAudioFile(file: File) {
@@ -22,7 +23,7 @@ function isSrtFile(file: File) {
   return file.name.toLowerCase().endsWith('.srt') || file.type === 'application/x-subrip' || file.type === 'text/plain';
 }
 
-export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
+export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLessonModalProps) {
   const [lessonName, setLessonName] = useState('');
   const [language, setLanguage] = useState<'en' | 'de'>('de');
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -34,6 +35,8 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
   useEffect(() => {
     if (!transcriptFile) setGenerateIpa(false);
   }, [transcriptFile]);
+
+  const isCreatingWithIPA = generateIpa && isGeneratingIPA;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -201,6 +204,13 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
             </label>
           </div>
 
+          {isCreatingWithIPA && (
+            <div className="mb-4 flex items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-900/80 px-4 py-3 text-sm text-gray-200">
+              <div className="w-5 h-5 border-4 border-gray-700 border-t-transparent rounded-full animate-spin" />
+              Generating IPA...
+            </div>
+          )}
+
           <button
             type="button"
             className={`w-full py-4 rounded-xl font-bold text-lg transition-colors ${
@@ -208,10 +218,17 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 : 'bg-gray-700 text-gray-500 cursor-not-allowed'
             }`}
-            disabled={!audioFile || !lessonName}
+            disabled={!audioFile || !lessonName || isGeneratingIPA}
             onClick={handleSubmit}
           >
-            Create Lesson
+            {isCreatingWithIPA ? (
+              <div className="flex items-center justify-center gap-3">
+                <div className="w-5 h-5 border-4 border-gray-700 border-t-transparent rounded-full animate-spin" />
+                Generating IPA...
+              </div>
+            ) : (
+              'Create Lesson'
+            )}
           </button>
         </div>
       </div>
