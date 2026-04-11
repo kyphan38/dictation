@@ -1,5 +1,4 @@
 import React from 'react';
-import { Trash2 } from 'lucide-react';
 
 interface EmptyStateProps {
   type: 'lessons' | 'decks' | 'trash';
@@ -27,12 +26,9 @@ export function EmptyState({ type }: EmptyStateProps) {
 
   if (type === 'trash') {
     return (
-      <div className="empty-state px-3 py-2 text-left flex items-start gap-2">
-        <Trash2 size={12} className="text-gray-600 shrink-0 mt-0.5" aria-hidden />
-        <div>
-          <p className="text-[11px] text-gray-500 leading-snug">{c.title}</p>
-          <p className="text-[10px] text-gray-600 mt-0.5">{c.description}</p>
-        </div>
+      <div className="empty-state px-3 py-2 text-left">
+        <p className="text-[11px] text-gray-500 leading-snug">{c.title}</p>
+        <p className="text-[10px] text-gray-600 mt-0.5">{c.description}</p>
       </div>
     );
   }

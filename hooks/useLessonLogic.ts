@@ -20,7 +20,7 @@ export function useLessonLogic(
   const [isGeneratingIPA, setIsGeneratingIPA] = useState<boolean>(false);
   const [ipaData, setIpaData] = useState<Record<number, string>>({});
   const ipaDataRef = useRef<Record<number, string>>({});
-  const [shadowingGenerateIpa, setShadowingGenerateIpa] = useState(true);
+  const [shadowingGenerateIpa, setShadowingGenerateIpa] = useState(false);
   const [lessonsList, setLessonsList] = useState<any[]>([]);
   const [isListLoading, setIsListLoading] = useState(true);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);

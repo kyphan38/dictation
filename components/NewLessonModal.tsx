@@ -6,6 +6,7 @@ interface LessonData {
   language: 'en' | 'de';
   audioFile: File;
   transcriptFile: File | null;
+  generateIpa: boolean;
 }
 
 interface NewLessonModalProps {
@@ -28,6 +29,7 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
   const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
   const [audioDrag, setAudioDrag] = useState(false);
   const [transcriptDrag, setTranscriptDrag] = useState(false);
+  const [generateIpa, setGenerateIpa] = useState(false);
 
   const applyAudioFile = useCallback((file: File) => {
     if (!isAudioFile(file)) return;
@@ -73,6 +75,7 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
         language,
         audioFile,
         transcriptFile,
+        generateIpa,
       });
     }
   };
@@ -150,6 +153,33 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
             </div>
+
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg p-2 -mx-1 hover:bg-gray-900/40 transition-colors">
+              <span className="relative mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={generateIpa}
+                  onChange={(e) => setGenerateIpa(e.target.checked)}
+                  className="peer sr-only"
+                />
+                <span
+                  className="flex h-4 w-4 items-center justify-center rounded border border-gray-600 bg-gray-900 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/50 peer-checked:border-emerald-500 peer-checked:bg-emerald-600"
+                  aria-hidden
+                >
+                  {generateIpa && (
+                    <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 12 10" fill="none" aria-hidden>
+                      <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium text-gray-200">Auto-generate IPA using AI</span>
+                <span className="mt-1 block text-xs text-gray-500 leading-relaxed">
+                  Adds IPA under each line in Shadowing mode. Requires a transcript (.srt). Runs after you create the lesson.
+                </span>
+              </span>
+            </label>
           </div>
 
           <button

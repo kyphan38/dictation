@@ -1,7 +1,7 @@
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import { parseTranscript } from '@/lib/utils';
 import { saveLesson } from '@/lib/db';
-import type { AppMode, DeckItem, LessonItem } from '@/types';
+import type { AppMode, DeckItem, LessonItem, Sentence } from '@/types';
 
 type SetToast = (t: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
 
@@ -11,12 +11,15 @@ type Selected = {
   data: LessonItem | DeckItem;
 };
 
+type FetchIPA = (sentencesToUse?: Sentence[], langOverride?: string) => void | Promise<void>;
+
 export function useLessonCreateFlow(
   setSelectedItem: Dispatch<SetStateAction<Selected | null>>,
   handleLoadLesson: (id: string) => Promise<void>,
   handleModeChange: (mode: AppMode) => void | Promise<void>,
   setUploadMode: (m: 'idle' | 'lesson' | 'deck') => void,
-  setToast: SetToast
+  setToast: SetToast,
+  fetchIPA: FetchIPA
 ) {
   const handleLessonCreated = useCallback(
     async (data: {
@@ -24,6 +27,7 @@ export function useLessonCreateFlow(
       language: 'en' | 'de';
       audioFile: File;
       transcriptFile: File | null;
+      generateIpa: boolean;
     }) => {
       try {
         let text = '';
@@ -68,13 +72,16 @@ export function useLessonCreateFlow(
 
         await handleLoadLesson(lessonId);
         await handleModeChange('normal');
+        if (data.generateIpa && sentences.length > 0) {
+          await fetchIPA(sentences, data.language);
+        }
         setUploadMode('idle');
         setToast({ message: 'Lesson created successfully.', type: 'success' });
       } catch {
         setToast({ message: 'Failed to create lesson.', type: 'error' });
       }
     },
-    [setSelectedItem, handleLoadLesson, handleModeChange, setUploadMode, setToast]
+    [setSelectedItem, handleLoadLesson, handleModeChange, setUploadMode, setToast, fetchIPA]
   );
 
   const handleDeckCreated = useCallback(

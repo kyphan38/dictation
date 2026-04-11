@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Music2, Layers, LogOut, PanelLeft } from 'lucide-react';
+import { SIDEBAR_DECKS_SECTION_HINT, SIDEBAR_LESSONS_SECTION_HINT } from '@/constants';
 import { LessonSummary, ExpandedSections, LessonItem, DeckItem, TrashItem } from '@/types';
 import { SidebarSection } from './SidebarSection';
 
@@ -135,6 +136,7 @@ export function Sidebar({
             <SidebarSection
               type="lessons"
               title="LESSONS"
+              sectionHint="Audio lessons with optional .srt transcript — listen, dictation, shadowing."
               items={activeLessons}
               isLoading={isListLoading}
               selectedItemId={selectedItemId}
@@ -151,6 +153,7 @@ export function Sidebar({
             <SidebarSection
               type="decks"
               title="DECKS"
+              sectionHint={SIDEBAR_DECKS_SECTION_HINT}
               items={activeDecks}
               isLoading={isListLoading}
               selectedItemId={selectedItemId}

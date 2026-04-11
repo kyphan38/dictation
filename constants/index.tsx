@@ -20,6 +20,12 @@ export const SECTION_LABELS: Record<string, string> = {
   'trash': 'Trash & Cache',
 };
 
+/** Muted one-liner under LESSONS / DECKS sidebar headers (desktop + mobile). */
+export const SIDEBAR_LESSONS_SECTION_HINT =
+  'Audio lessons with optional .srt transcript — listen, dictation, shadowing.';
+export const SIDEBAR_DECKS_SECTION_HINT =
+  'Vocabulary and lines as flashcards — review and rate cards.';
+
 // Languages
 export const LANGUAGES = [
   { value: 'de-DE', label: 'German (de-DE)' },

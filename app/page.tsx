@@ -83,7 +83,8 @@ export default function NodaApp() {
     handleLoadLesson,
     handleModeChange,
     setUploadMode,
-    setToast
+    setToast,
+    fetchIPA
   );
 
   const handleNewLessonWrapper = () => {

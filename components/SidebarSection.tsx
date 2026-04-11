@@ -21,6 +21,8 @@ interface SidebarSectionProps {
   setActiveMenu: (id: string | null) => void;
   emptyMessage?: string;
   isLoading?: boolean;
+  /** One-line muted hint under the section title (LESSONS / DECKS). */
+  sectionHint?: string;
 }
 
 export function SidebarSection({
@@ -37,6 +39,7 @@ export function SidebarSection({
   setActiveMenu,
   emptyMessage,
   isLoading,
+  sectionHint,
 }: SidebarSectionProps) {
   const isExpanded = expandedSections[type] ?? (type === 'lessons' || type === 'decks');
   const toggleSection = () => onToggleSection(type, !isExpanded);
@@ -53,7 +56,10 @@ export function SidebarSection({
         </span>
         {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
-      
+      {sectionHint && (
+        <p className="px-3 text-[10px] text-gray-600 leading-snug -mt-0.5 mb-1">{sectionHint}</p>
+      )}
+
       {isExpanded && (
         <div className="mt-2 space-y-2">
           {isLoading && type === 'lessons' && (
@@ -90,7 +96,7 @@ export function SidebarSection({
               <>
                 {enLessons.length > 0 && (
                   <Accordion
-                    title={`🇬🇧 English (${enLessons.length})`}
+                    title="🇬🇧 English"
                     isExpanded={expandedSections['audio-en'] ?? true}
                     onToggle={() => onToggleSection('audio-en', !(expandedSections['audio-en'] ?? true))}
                   >
@@ -110,7 +116,7 @@ export function SidebarSection({
                 )}
                 {deLessons.length > 0 && (
                   <Accordion
-                    title={`🇩🇪 German (${deLessons.length})`}
+                    title="🇩🇪 German"
                     isExpanded={expandedSections['audio-de'] ?? false}
                     onToggle={() => onToggleSection('audio-de', !(expandedSections['audio-de'] ?? false))}
                   >
