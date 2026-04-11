@@ -21,7 +21,6 @@ interface SidebarSectionProps {
   setActiveMenu: (id: string | null) => void;
   emptyMessage?: string;
   isLoading?: boolean;
-  onEmptyAction?: () => void;
 }
 
 export function SidebarSection({
@@ -38,7 +37,6 @@ export function SidebarSection({
   setActiveMenu,
   emptyMessage,
   isLoading,
-  onEmptyAction,
 }: SidebarSectionProps) {
   const isExpanded = expandedSections[type] ?? (type === 'lessons' || type === 'decks');
   const toggleSection = () => onToggleSection(type, !isExpanded);
@@ -82,7 +80,7 @@ export function SidebarSection({
           )}
 
           {!isLoading && items.length === 0 && (type === 'lessons' || type === 'decks' || type === 'trash') && (
-            <EmptyState type={type} onAction={onEmptyAction} />
+            <EmptyState type={type} />
           )}
 
           {!isLoading && type === 'lessons' && items.length > 0 && (() => {

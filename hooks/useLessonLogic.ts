@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Sentence, AppMode, ExpandedSections } from '@/types';
 import { DEFAULT_APP_MODE, GEMINI_MODEL, SAVE_PROGRESS_DELAY_MS } from '@/constants';
-import { parseTranscript, getIPASystemInstruction, getLetters } from '@/lib/utils';
+import { parseTranscript, getIPASystemInstruction } from '@/lib/utils';
 import { getAllLessons, getLesson, saveLesson, trashLesson, deleteLesson, updateLessonProgress } from '@/lib/db';
 
 export function useLessonLogic(
@@ -19,6 +19,8 @@ export function useLessonLogic(
   const [isStarted, setIsStarted] = useState<boolean>(false);
   const [isGeneratingIPA, setIsGeneratingIPA] = useState<boolean>(false);
   const [ipaData, setIpaData] = useState<Record<number, string>>({});
+  const ipaDataRef = useRef<Record<number, string>>({});
+  const [shadowingGenerateIpa, setShadowingGenerateIpa] = useState(true);
   const [lessonsList, setLessonsList] = useState<any[]>([]);
   const [isListLoading, setIsListLoading] = useState(true);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
@@ -105,7 +107,9 @@ export function useLessonLogic(
         }
         
         setTranscriptText(lesson.transcriptText);
-        setIpaData(lesson.ipaData || {});
+        const loadedIpa = lesson.ipaData || {};
+        ipaDataRef.current = loadedIpa;
+        setIpaData(loadedIpa);
         setCompletedSentences(lesson.completedSentences || {});
         setIsStarted(!!lesson.audioFile);
         setAppMode('normal');
@@ -126,6 +130,7 @@ export function useLessonLogic(
     setAudioFile(null);
     setAudioURL(null);
     setTranscriptText('');
+    ipaDataRef.current = {};
     setIpaData({});
     setCompletedSentences({});
     setIsStarted(false);
@@ -164,7 +169,7 @@ export function useLessonLogic(
   };
 
   const fetchIPA = async (sentencesToUse = transcript, langOverride?: string) => {
-    if (Object.keys(ipaData).length > 0) return;
+    if (Object.keys(ipaDataRef.current).length > 0) return;
     if (!sentencesToUse.length) return;
     const lang = langOverride ?? recognitionLang;
     setIsGeneratingIPA(true);
@@ -201,6 +206,7 @@ export function useLessonLogic(
         newIpaData[item.id] = item.ipa;
       });
       
+      ipaDataRef.current = newIpaData;
       setIpaData(newIpaData);
     } catch (error) {
       console.error("Failed to generate IPA", error);
@@ -247,7 +253,7 @@ export function useLessonLogic(
       }
     }
     
-    if (appMode === 'shadowing') {
+    if (appMode === 'shadowing' && shadowingGenerateIpa) {
       await fetchIPA(sentences);
     }
     
@@ -256,7 +262,7 @@ export function useLessonLogic(
 
   const handleModeChange = async (mode: AppMode) => {
     setAppMode(mode);
-    if (mode === 'shadowing') {
+    if (mode === 'shadowing' && shadowingGenerateIpa) {
       await fetchIPA();
     }
   };
@@ -318,6 +324,8 @@ export function useLessonLogic(
     setIsStarted,
     isGeneratingIPA,
     ipaData,
+    shadowingGenerateIpa,
+    setShadowingGenerateIpa,
     lessonsList,
     isListLoading,
     currentLessonId,

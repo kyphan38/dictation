@@ -94,6 +94,11 @@ export const getNextPlaybackSpeed = (currentSpeed: number) => {
   return PLAYBACK_SPEEDS[(currentIndex + 1) % PLAYBACK_SPEEDS.length];
 };
 
+/** Normalize lesson / speech-recognition codes for IPA prompt (de, de-DE → German; en, en-US → English). */
+export const isGermanForIPA = (lang: string) =>
+  lang === 'de' || lang === 'de-DE' || lang.startsWith('de');
+
 export const getIPASystemInstruction = (recognitionLang: string) => {
-  return `You are an IPA converter. Convert the user's text into ${recognitionLang === 'de-DE' ? 'German' : 'English'} IPA. Output ONLY raw JSON. Do not add any greetings, explanations, or formatting.`;
+  const label = isGermanForIPA(recognitionLang) ? 'German' : 'English';
+  return `You are an IPA converter. Convert the user's text into ${label} IPA. Output ONLY raw JSON. Do not add any greetings, explanations, or formatting.`;
 };

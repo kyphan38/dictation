@@ -137,7 +137,6 @@ export function Sidebar({
               title="LESSONS"
               items={activeLessons}
               isLoading={isListLoading}
-              onEmptyAction={onNewLesson}
               selectedItemId={selectedItemId}
               expandedSections={expandedSections}
               onToggleSection={onToggleSection}
@@ -154,7 +153,6 @@ export function Sidebar({
               title="DECKS"
               items={activeDecks}
               isLoading={isListLoading}
-              onEmptyAction={onNewDeck}
               selectedItemId={selectedItemId}
               expandedSections={expandedSections}
               onToggleSection={onToggleSection}
