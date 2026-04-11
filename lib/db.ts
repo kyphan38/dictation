@@ -82,6 +82,18 @@ export const trashLesson = async (id: string) => {
   }
 };
 
+/** Remove audio file only; keep transcript, progress, and lesson in library (not trashed). */
+export const clearLessonMedia = async (id: string) => {
+  const db = await initDB();
+  if (!db) return;
+  const lesson = await db.get('lessons', id);
+  if (!lesson || lesson.type === 'flashcard') return;
+  lesson.audioFile = null;
+  lesson.type = 'audio';
+  lesson.isTrashed = false;
+  await db.put('lessons', lesson);
+};
+
 export const updateLessonProgress = async (id: string, completedSentences: Record<number, boolean>, ipaData: Record<number, string>) => {
   const db = await initDB();
   if (db) {

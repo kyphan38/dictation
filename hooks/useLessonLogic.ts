@@ -20,6 +20,7 @@ export function useLessonLogic(
   const [isGeneratingIPA, setIsGeneratingIPA] = useState<boolean>(false);
   const [ipaData, setIpaData] = useState<Record<number, string>>({});
   const [lessonsList, setLessonsList] = useState<any[]>([]);
+  const [isListLoading, setIsListLoading] = useState(true);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [lessonName, setLessonName] = useState<string>('');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -45,26 +46,35 @@ export function useLessonLogic(
 
   const transcript = useMemo(() => parseTranscript(transcriptText), [transcriptText]);
 
-  const loadLessonsList = async () => {
+  const loadLessonsList = async (opts?: { trackLoading?: boolean }) => {
+    const trackLoading = opts?.trackLoading === true;
+    if (trackLoading) setIsListLoading(true);
     try {
       const dbLessons = await getAllLessons();
       dbLessons.sort((a, b) => b.lastAccessed - a.lastAccessed);
-      setLessonsList(dbLessons.map(l => ({
-        id: l.id,
-        name: l.name,
-        language: l.language,
-        progress: l.totalSentences > 0 ? Math.round((Object.keys(l.completedSentences || {}).length / l.totalSentences) * 100) : 0,
-        hasIpa: Object.keys(l.ipaData || {}).length > 0,
-        isTrashed: !!l.isTrashed,
-        hasAudio: !!l.audioFile
-      })));
+      setLessonsList(dbLessons.map(l => {
+        const kind: 'audio' | 'flashcard' = l.type === 'flashcard' ? 'flashcard' : 'audio';
+        return {
+          id: l.id,
+          name: l.name,
+          language: l.language,
+          progress: l.totalSentences > 0 ? Math.round((Object.keys(l.completedSentences || {}).length / l.totalSentences) * 100) : 0,
+          totalSentences: l.totalSentences ?? 0,
+          kind,
+          hasIpa: Object.keys(l.ipaData || {}).length > 0,
+          isTrashed: !!l.isTrashed,
+          hasAudio: !!l.audioFile
+        };
+      }));
     } catch (e) {
       console.error("Failed to load lessons", e);
+    } finally {
+      if (trackLoading) setIsListLoading(false);
     }
   };
 
   useEffect(() => {
-    loadLessonsList();
+    loadLessonsList({ trackLoading: true });
   }, []);
 
   useEffect(() => {
@@ -153,8 +163,10 @@ export function useLessonLogic(
     loadLessonsList();
   };
 
-  const fetchIPA = async (sentencesToUse = transcript) => {
+  const fetchIPA = async (sentencesToUse = transcript, langOverride?: string) => {
     if (Object.keys(ipaData).length > 0) return;
+    if (!sentencesToUse.length) return;
+    const lang = langOverride ?? recognitionLang;
     setIsGeneratingIPA(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
@@ -165,7 +177,7 @@ export function useLessonLogic(
         model: GEMINI_MODEL,
         contents: JSON.stringify(sentencesToTranslate),
         config: {
-          systemInstruction: getIPASystemInstruction(recognitionLang),
+          systemInstruction: getIPASystemInstruction(lang),
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -307,6 +319,7 @@ export function useLessonLogic(
     isGeneratingIPA,
     ipaData,
     lessonsList,
+    isListLoading,
     currentLessonId,
     lessonName,
     setLessonName,
@@ -328,6 +341,7 @@ export function useLessonLogic(
     handleStartLearning,
     handleModeChange,
     handleTranscriptUpload,
-    handleFlashcardUpload
+    handleFlashcardUpload,
+    loadLessonsList
   };
 }

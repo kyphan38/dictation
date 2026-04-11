@@ -11,31 +11,31 @@ interface TrashCardProps {
 
 export function TrashCard({ id, name, originalType, language, onDeletePermanently }: TrashCardProps) {
   const typeIcon = originalType === 'lesson' ? '🎧' : '🎴';
-  
+  const langLabel = language?.toUpperCase() || '—';
+
   return (
-    <div className="p-3 ml-2 rounded-lg bg-gray-900/50 border border-gray-800 group mb-2">
-      <div className="flex justify-between items-start mb-2">
-        <h4
-          className="font-medium text-gray-200 text-sm truncate pr-2 flex items-center gap-2"
-          title={name}
-        >
-          <span>{typeIcon}</span>
-          {name}
-        </h4>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDeletePermanently(id);
-          }}
-          className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-          title="Delete permanently"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
-      <div className="flex items-center gap-3 text-xs text-gray-500">
-        <span>{language.toUpperCase()}</span>
-      </div>
+    <div className="group flex items-center gap-2 min-w-0 ml-2 px-2 py-1.5 rounded-lg bg-gray-900/50 border border-gray-800 mb-1">
+      <span className="text-sm shrink-0 opacity-80" aria-hidden>
+        {typeIcon}
+      </span>
+      <h4
+        className="font-medium text-gray-200 text-xs truncate min-w-0 flex-1"
+        title={name}
+      >
+        {name}
+      </h4>
+      <span className="text-[10px] text-gray-500 tabular-nums shrink-0">{langLabel}</span>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDeletePermanently(id);
+        }}
+        className="shrink-0 p-0.5 rounded text-gray-500 hover:text-red-400 opacity-100 max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+        title="Delete permanently"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 }

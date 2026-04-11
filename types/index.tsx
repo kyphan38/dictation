@@ -32,6 +32,10 @@ export type LessonSummary = {
   name: string;
   language: string;
   progress: number;
+  /** Line / sentence count from DB (used for deck card counts in sidebar). */
+  totalSentences: number;
+  /** Library section: audio lessons vs flashcard decks (independent of whether audio file is present). */
+  kind: 'audio' | 'flashcard';
   hasIpa: boolean;
   isTrashed: boolean;
   hasAudio: boolean;

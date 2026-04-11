@@ -1,1 +1,463 @@
 @import "tailwindcss";
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(31, 41, 55, 0.55);
+  background: transparent;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.header-left {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+}
+
+.app-logo svg {
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.mode-tabs-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+  min-width: 0;
+}
+
+.mode-tabs {
+  display: inline-flex;
+  align-items: stretch;
+  background: rgba(31, 41, 55, 0.3);
+  border: none;
+  border-radius: 9999px;
+  padding: 4px;
+  gap: 2px;
+}
+
+.mode-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+  white-space: nowrap;
+}
+
+.mode-tab:hover {
+  color: #e5e7eb;
+  background: rgba(55, 65, 81, 0.25);
+}
+
+.mode-tab.active {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.mode-tab svg {
+  flex-shrink: 0;
+}
+
+.header-right {
+  display: none;
+  flex-shrink: 0;
+  width: 150px;
+}
+
+@media (min-width: 768px) {
+  .header-right {
+    display: block;
+  }
+}
+
+/* Mobile: stack header, icon-only tabs */
+@media (max-width: 768px) {
+  .app-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 0;
+  }
+
+  .header-left {
+    width: 100%;
+  }
+
+  .mode-tabs-container {
+    width: 100%;
+    padding: 0;
+  }
+
+  .mode-tabs {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mode-tab {
+    flex: 1;
+    justify-content: center;
+    padding: 12px 8px;
+    min-width: 0;
+  }
+
+  .mode-tab .mode-tab-label {
+    display: none;
+  }
+
+  .mode-tab svg {
+    margin: 0;
+  }
+}
+
+/* Tablet */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .mode-tab {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+}
+
+/* Mode content enter animation */
+@keyframes modeContentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mode-content-fade {
+  animation: modeContentFadeIn 0.25s ease-out;
+}
+
+/* Loading skeleton shimmer */
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(55, 65, 81, 0.35) 0%,
+    rgba(75, 85, 99, 0.55) 50%,
+    rgba(55, 65, 81, 0.35) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+/* Toast */
+@keyframes slideInRight {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 14px 18px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  animation: slideInRight 0.3s ease-out;
+  z-index: 100;
+}
+
+.toast-success {
+  background: #10b981;
+  color: white;
+}
+
+.toast-error {
+  background: #ef4444;
+  color: white;
+}
+
+.toast-info {
+  background: #3b82f6;
+  color: white;
+}
+
+/* Focus & interaction polish */
+button:focus-visible,
+.mode-tab:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+
+.lesson-card:focus-visible,
+.deck-card:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.lesson-card:active,
+.deck-card:active {
+  transform: scale(0.99);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Flashcard viewer (Gemini spec) */
+.flashcard-viewer-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.flashcard-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flashcard-header .progress-wrapper {
+  flex: 1;
+  min-width: 160px;
+}
+
+.flashcard-header .progress-bar {
+  height: 6px;
+  background: rgba(55, 65, 81, 0.8);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.flashcard-header .progress-fill {
+  height: 100%;
+  background: #10b981;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.flashcard-header .progress-text {
+  display: block;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 6px;
+}
+
+.flashcard-header .header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.flashcard-btn-ghost {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #d1d5db;
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid #374151;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.flashcard-btn-ghost:hover {
+  background: #374151;
+  color: white;
+}
+
+.flashcard-btn-ghost.active {
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.flashcard-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid #10b981;
+  border-radius: 24px;
+  margin: 24px 0;
+  padding: 48px 24px;
+  min-height: 200px;
+}
+
+.flashcard-text {
+  font-size: 1.5rem;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.5;
+  color: white;
+}
+
+@media (min-width: 640px) {
+  .flashcard-text {
+    font-size: 2rem;
+  }
+}
+
+.flashcard-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.rate-btn {
+  flex: 1;
+  min-width: 72px;
+  padding: 16px 8px;
+  border-radius: 12px;
+  border: none;
+  background: #1f2937;
+  color: #d1d5db;
+  font-weight: 500;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+  position: relative;
+}
+
+.rate-btn:hover {
+  filter: brightness(1.12);
+  color: #f3f4f6;
+}
+
+.rate-btn.btn-again {
+  background: rgba(248, 113, 113, 0.1);
+  color: #e5e7eb;
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.12);
+}
+
+.rate-btn.btn-hard {
+  background: rgba(251, 146, 60, 0.09);
+  color: #e5e7eb;
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.1);
+}
+
+.rate-btn.btn-good {
+  background: rgba(250, 204, 21, 0.08);
+  color: #e5e7eb;
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.1);
+}
+
+.rate-btn.btn-easy {
+  background: rgba(52, 211, 153, 0.1);
+  color: #e5e7eb;
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.12);
+}
+
+.rate-btn.btn-done {
+  background: rgba(59, 130, 246, 0.1);
+  color: #e5e7eb;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
+}
+
+.rate-btn.flash-active {
+  background: rgba(16, 185, 129, 0.35) !important;
+  color: #ecfdf5 !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(52, 211, 153, 0.45),
+    0 0 0 1px rgba(16, 185, 129, 0.25) !important;
+  transform: scale(0.95);
+}
+
+.shortcut-hint {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  font-size: 10px;
+  color: #6b7280;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.flashcard-editor .deck-textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #111827;
+  border: 1px solid #374151;
+  color: #e5e7eb;
+  font-size: 14px;
+  resize: vertical;
+}

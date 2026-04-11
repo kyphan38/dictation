@@ -41,7 +41,7 @@ export function PlayerControls({
       {/* Play/Pause */}
       <button
         onClick={onPlayPause}
-        className="w-14 h-14 flex items-center justify-center rounded-full bg-emerald-400 hover:bg-yellow-300 text-gray-950 transition-transform active:scale-95"
+        className="w-14 h-14 flex items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition-transform active:scale-95"
       >
         {isPlaying ? (
           <Pause className="w-6 h-6 fill-current" />

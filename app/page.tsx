@@ -1,25 +1,24 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { PanelLeft, Trash2, Plus } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { PanelLeft, Trash2, Plus, Headphones, PenTool, Mic, MoreVertical, Edit2 } from 'lucide-react';
 import { AUTH_USERNAME, AUTH_PASSWORD, STORAGE_AUTH_KEY } from '@/constants';
 import { getLetters, parseTranscript } from '@/lib/utils';
-import { saveLesson } from '@/lib/db';
+import { saveLesson, clearLessonMedia } from '@/lib/db';
 import { AuthScreen } from '@/components/Auth';
 import { Sidebar } from '@/components/Sidebar';
 import { SidebarSection } from '@/components/SidebarSection';
-import { Player } from '@/components/Player';
-import { Transcript } from '@/components/Transcript';
 import { NewLessonModal } from '@/components/NewLessonModal';
 import { NewDeckModal } from '@/components/NewDeckModal';
 import { CleanupModal } from '@/components/CleanupModal';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useLessonLogic } from '@/hooks/useLessonLogic';
-import { LessonItem, DeckItem, AppMode, AppTab, Sentence } from '@/types';
+import { LessonItem, DeckItem, AppTab, Sentence } from '@/types';
 import { LessonView } from '@/components/LessonView';
-import { DeckView } from '@/components/DeckView';
+import { FlashcardViewer } from '@/components/FlashcardViewer';
 import { WelcomeScreen } from '@/components/WelcomeScreen';
+import { Toast } from '@/components/Toast';
 
 export default function NodaApp() {
   // Authentication State
@@ -33,6 +32,14 @@ export default function NodaApp() {
   const [activeTab, setActiveTab] = useState<AppTab>('Lessons');
   
   const [uploadMode, setUploadMode] = useState<'idle' | 'lesson' | 'deck'>('idle');
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
+
+  const [mobileSidebarMenuId, setMobileSidebarMenuId] = useState<string | null>(null);
+  const [headerItemMenuOpen, setHeaderItemMenuOpen] = useState(false);
+  const headerMenuRefMobile = useRef<HTMLDivElement | null>(null);
+  const headerMenuRefDesktop = useRef<HTMLDivElement | null>(null);
 
   const [selectedItem, setSelectedItem] = useState<{
     id: string;
@@ -79,50 +86,59 @@ export default function NodaApp() {
     language: 'en' | 'de';
     audioFile: File;
     transcriptFile: File | null;
+    generateIpa: boolean;
   }) => {
-    let text = '';
-    if (data.transcriptFile) {
-      text = await data.transcriptFile.text();
+    try {
+      let text = '';
+      if (data.transcriptFile) {
+        text = await data.transcriptFile.text();
+      }
+
+      const sentences = parseTranscript(text);
+      const lessonId = Date.now().toString();
+
+      const newLesson = {
+        id: lessonId,
+        type: 'audio' as const,
+        name: data.name,
+        language: data.language,
+        audioFile: data.audioFile,
+        transcriptText: text,
+        ipaData: {},
+        completedSentences: {},
+        totalSentences: sentences.length,
+        createdAt: Date.now(),
+        lastAccessed: Date.now()
+      };
+
+      await saveLesson(newLesson);
+
+      const lessonItem: LessonItem = {
+        id: lessonId,
+        name: data.name,
+        language: data.language,
+        progress: 0,
+        hasAudio: true,
+        hasIpa: false,
+        type: 'lesson'
+      };
+
+      setSelectedItem({
+        id: lessonId,
+        type: 'lesson',
+        data: lessonItem
+      });
+
+      await handleLoadLesson(lessonId);
+      await handleModeChange('normal');
+      if (data.generateIpa && sentences.length > 0) {
+        await fetchIPA(sentences, data.language);
+      }
+      setUploadMode('idle');
+      setToast({ message: 'Lesson created successfully.', type: 'success' });
+    } catch {
+      setToast({ message: 'Failed to create lesson.', type: 'error' });
     }
-    
-    const sentences = parseTranscript(text);
-    const lessonId = Date.now().toString();
-    
-    const newLesson = {
-      id: lessonId,
-      type: 'audio' as const,
-      name: data.name,
-      language: data.language,
-      audioFile: data.audioFile,
-      transcriptText: text,
-      ipaData: {},
-      completedSentences: {},
-      totalSentences: sentences.length,
-      createdAt: Date.now(),
-      lastAccessed: Date.now()
-    };
-    
-    await saveLesson(newLesson);
-    
-    const lessonItem: LessonItem = {
-      id: lessonId,
-      name: data.name,
-      language: data.language,
-      progress: 0,
-      hasAudio: true,
-      hasIpa: false,
-      type: 'lesson'
-    };
-    
-    setSelectedItem({
-      id: lessonId,
-      type: 'lesson',
-      data: lessonItem
-    });
-    
-    handleLoadLesson(lessonId);
-    handleModeChange('normal');
-    setUploadMode('idle');
   };
 
   const handleDeckCreated = async (deckData: {
@@ -130,51 +146,56 @@ export default function NodaApp() {
     language: 'en' | 'de';
     content: string;
   }) => {
-    const lines = deckData.content
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
-    
-    const lessonId = Date.now().toString();
-    
-    const newLesson = {
-      id: lessonId,
-      type: 'flashcard' as const,
-      name: deckData.name,
-      language: deckData.language,
-      transcriptText: '',
-      ipaData: {},
-      completedSentences: {},
-      totalSentences: lines.length,
-      createdAt: Date.now(),
-      lastAccessed: Date.now(),
-      flashcardData: {
-        lines,
-        ratings: {},
-        currentIndex: 0,
-        isShuffled: false,
-        shuffledIndices: []
-      }
-    };
-    
-    await saveLesson(newLesson);
-    
-    const deckItem: DeckItem = {
-      id: lessonId,
-      name: deckData.name,
-      language: deckData.language,
-      cardCount: lines.length,
-      type: 'deck'
-    };
-    
-    setSelectedItem({
-      id: lessonId,
-      type: 'deck',
-      data: deckItem
-    });
-    
-    handleLoadLesson(lessonId);
-    setUploadMode('idle');
+    try {
+      const lines = deckData.content
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      const lessonId = Date.now().toString();
+
+      const newLesson = {
+        id: lessonId,
+        type: 'flashcard' as const,
+        name: deckData.name,
+        language: deckData.language,
+        transcriptText: '',
+        ipaData: {},
+        completedSentences: {},
+        totalSentences: lines.length,
+        createdAt: Date.now(),
+        lastAccessed: Date.now(),
+        flashcardData: {
+          lines,
+          ratings: {},
+          currentIndex: 0,
+          isShuffled: false,
+          shuffledIndices: []
+        }
+      };
+
+      await saveLesson(newLesson);
+
+      const deckItem: DeckItem = {
+        id: lessonId,
+        name: deckData.name,
+        language: deckData.language,
+        cardCount: lines.length,
+        type: 'deck'
+      };
+
+      setSelectedItem({
+        id: lessonId,
+        type: 'deck',
+        data: deckItem
+      });
+
+      await handleLoadLesson(lessonId);
+      setUploadMode('idle');
+      setToast({ message: 'Deck created successfully.', type: 'success' });
+    } catch {
+      setToast({ message: 'Failed to create deck.', type: 'error' });
+    }
   };
 
   const {
@@ -193,14 +214,62 @@ export default function NodaApp() {
   const {
     transcriptText, setTranscriptText, appMode, setAppMode,
     dictationInputs, setDictationInputs, completedSentences, setCompletedSentences,
-    isStarted, isGeneratingIPA, ipaData, lessonsList,
+    isStarted, isGeneratingIPA, ipaData, lessonsList, isListLoading,
     lessonName, setLessonName,
     isSidebarOpen, setIsSidebarOpen, lessonToDelete, setLessonToDelete,
     expandedSections, setExpandedSections,
     appModeRef, completedSentencesRef, transcript,
     handleLoadLesson, handleNewLesson, handleRenameLesson, handleTrashLesson, handleDeletePermanently,
-    handleStartLearning, handleModeChange, handleTranscriptUpload, handleFlashcardUpload
+    handleStartLearning, handleModeChange, handleTranscriptUpload, handleFlashcardUpload,
+    loadLessonsList, fetchIPA
   } = useLessonLogic(audioFile, setAudioFile, setAudioURL, recognitionLang, setRecognitionLang);
+
+  useEffect(() => {
+    setHeaderItemMenuOpen(false);
+  }, [selectedItem?.id]);
+
+  useEffect(() => {
+    if (!headerItemMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (headerMenuRefMobile.current?.contains(t)) return;
+      if (headerMenuRefDesktop.current?.contains(t)) return;
+      setHeaderItemMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [headerItemMenuOpen]);
+
+  const handleHeaderRenameCurrent = () => {
+    if (!selectedItem) return;
+    const cur = selectedItem.data.name;
+    const next = window.prompt('Rename to:', cur);
+    if (next == null) return;
+    const t = next.trim();
+    if (!t || t === cur) return;
+    void handleRenameLesson(selectedItem.id, t);
+    setSelectedItem((prev) =>
+      prev && prev.id === selectedItem.id
+        ? {
+            ...prev,
+            data:
+              prev.type === 'lesson'
+                ? { ...(prev.data as LessonItem), name: t }
+                : { ...(prev.data as DeckItem), name: t },
+          }
+        : prev
+    );
+    setHeaderItemMenuOpen(false);
+  };
+
+  const handleHeaderTrashCurrent = () => {
+    const id = selectedItem?.id;
+    if (!id) return;
+    setHeaderItemMenuOpen(false);
+    void handleTrashLesson(id).then(() => {
+      handleNewLessonWrapper();
+    });
+  };
 
   const activeSentenceRef = useRef<Sentence | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -208,24 +277,48 @@ export default function NodaApp() {
   
   // Cleanup Modal State
   const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [cleanupModalVariant, setCleanupModalVariant] = useState<'lesson' | 'deck'>('lesson');
+  const prevLessonIdForCompletionRef = useRef<string | null>(null);
   const prevCompletedCountRef = useRef<number>(-1);
 
   useEffect(() => {
-    if (isStarted && transcript.length > 0 && selectedItem?.id) {
-      const currentCount = Object.keys(completedSentences).length;
-      const total = transcript.length;
-      
-      if (prevCompletedCountRef.current !== -1 && prevCompletedCountRef.current < total && currentCount === total) {
-        setShowCleanupModal(true);
+    const id = selectedItem?.id ?? null;
+    if (id !== prevLessonIdForCompletionRef.current) {
+      prevLessonIdForCompletionRef.current = id;
+      if (id && selectedItem?.type === 'lesson' && isStarted && transcript.length > 0) {
+        prevCompletedCountRef.current = Object.keys(completedSentences).length;
+      } else {
+        prevCompletedCountRef.current = -1;
       }
-      
-      prevCompletedCountRef.current = currentCount;
+      return;
     }
-  }, [completedSentences, transcript, isStarted, selectedItem?.id]);
 
-  useEffect(() => {
-    prevCompletedCountRef.current = -1;
-  }, [selectedItem?.id]);
+    if (!id || selectedItem?.type !== 'lesson' || !isStarted || transcript.length === 0) {
+      return;
+    }
+
+    const currentCount = Object.keys(completedSentences).length;
+    const total = transcript.length;
+
+    if (
+      appMode === 'dictation' &&
+      prevCompletedCountRef.current !== -1 &&
+      prevCompletedCountRef.current < total &&
+      currentCount === total
+    ) {
+      setCleanupModalVariant('lesson');
+      setShowCleanupModal(true);
+    }
+
+    prevCompletedCountRef.current = currentCount;
+  }, [
+    selectedItem?.id,
+    selectedItem?.type,
+    appMode,
+    completedSentences,
+    transcript,
+    isStarted,
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -243,6 +336,24 @@ export default function NodaApp() {
       // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
+      }
+
+      if (selectedItem?.type === 'lesson' && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+        if (e.key === '1') {
+          e.preventDefault();
+          void handleModeChange('normal');
+          return;
+        }
+        if (e.key === '2') {
+          e.preventDefault();
+          void handleModeChange('dictation');
+          return;
+        }
+        if (e.key === '3') {
+          e.preventDefault();
+          void handleModeChange('shadowing');
+          return;
+        }
       }
 
       if (e.code === 'Space') {
@@ -266,7 +377,7 @@ export default function NodaApp() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [togglePlayPause, toggleLoopMode, loopTimeoutRef, isLoopDelayingRef, audioRef]);
+  }, [togglePlayPause, toggleLoopMode, loopTimeoutRef, isLoopDelayingRef, audioRef, selectedItem?.type, handleModeChange]);
 
   const handleSkip = (sentence: Sentence) => {
     setCompletedSentences(prev => ({ ...prev, [sentence.id]: true }));
@@ -456,6 +567,7 @@ export default function NodaApp() {
           isOpen={isSidebarOpen}
           onToggle={setIsSidebarOpen}
           lessons={lessonsList}
+          isListLoading={isListLoading}
           selectedItemId={selectedItem?.id}
           expandedSections={expandedSections}
           onItemSelect={handleItemSelect}
@@ -480,67 +592,152 @@ export default function NodaApp() {
         <div className="max-w-4xl mx-auto w-full p-4 md:p-8 flex flex-col min-h-full">
           
           {/* Header */}
-          <header className="flex flex-col md:flex-row md:items-center justify-between py-6 mb-4 border-b border-gray-800 shrink-0 gap-4">
-            <div className="flex items-center gap-3">
+          <header className="app-header">
+            <div className="header-left">
               {!isSidebarOpen && (
-                <button onClick={() => setIsSidebarOpen(true)} className="hidden md:block p-2 -ml-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors" title="Open Sidebar">
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="hidden md:block p-2 -ml-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+                  title="Open Sidebar"
+                >
                   <PanelLeft size={24} />
                 </button>
               )}
               {selectedItem?.id && (
-                <button 
+                <button
+                  type="button"
                   onClick={() => {
                     handleNewLessonWrapper();
-                  }} 
-                  className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors" 
+                  }}
+                  className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
                   title="Back to List"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
               )}
-              <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3 text-white">
-                <span className="text-emerald-400">🎧</span> Noda.
+              <h1 className="app-logo">
+                <Headphones size={24} aria-hidden />
+                <span>Noda.</span>
               </h1>
+              {selectedItem && (
+                <div ref={headerMenuRefMobile} className="relative ml-auto shrink-0 md:hidden z-20">
+                  <button
+                    type="button"
+                    onClick={() => setHeaderItemMenuOpen((o) => !o)}
+                    className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                    aria-expanded={headerItemMenuOpen}
+                    aria-label="Lesson or deck actions"
+                  >
+                    <MoreVertical size={22} aria-hidden />
+                  </button>
+                  {headerItemMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-40 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-30">
+                      <button
+                        type="button"
+                        onClick={handleHeaderRenameCurrent}
+                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center gap-2"
+                      >
+                        <Edit2 size={14} aria-hidden /> Rename
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleHeaderTrashCurrent}
+                        className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2"
+                      >
+                        <Trash2 size={14} aria-hidden /> Move to Trash
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Tabs */}
-            {isStarted && selectedItem?.type === 'lesson' && (
-              <div className="flex bg-gray-800 rounded-lg p-1 border border-gray-700 overflow-x-auto">
-                <button
-                  onClick={() => handleModeChange('normal')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    appMode === 'normal'
-                      ? 'bg-gray-600 text-white'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  Normal (Listen)
-                </button>
-                <button
-                  onClick={() => handleModeChange('dictation')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    appMode === 'dictation'
-                      ? 'bg-purple-500/40 text-purple-100'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  Dictation
-                </button>
-                <button
-                  onClick={() => handleModeChange('shadowing')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${
-                    appMode === 'shadowing'
-                      ? 'bg-green-500/40 text-green-100'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  {isGeneratingIPA && appMode === 'shadowing' && (
-                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  )}
-                  Shadowing
-                </button>
+            {selectedItem?.type === 'lesson' && (
+              <div className="mode-tabs-container">
+                <div className="mode-tabs" role="tablist" aria-label="Lesson mode">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={appMode === 'normal'}
+                    data-mode="listen"
+                    className={`mode-tab ${appMode === 'normal' ? 'active' : ''}`}
+                    title="Listen mode (⌘1 / Ctrl+1)"
+                    onClick={() => void handleModeChange('normal')}
+                  >
+                    <Headphones size={18} aria-hidden />
+                    <span className="mode-tab-label">Normal (Listen)</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={appMode === 'dictation'}
+                    data-mode="dictation"
+                    className={`mode-tab ${appMode === 'dictation' ? 'active' : ''}`}
+                    title="Dictation mode (⌘2 / Ctrl+2)"
+                    onClick={() => void handleModeChange('dictation')}
+                  >
+                    <PenTool size={18} aria-hidden />
+                    <span className="mode-tab-label">Dictation</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={appMode === 'shadowing'}
+                    data-mode="shadowing"
+                    className={`mode-tab ${appMode === 'shadowing' ? 'active' : ''}`}
+                    title="Shadowing mode (⌘3 / Ctrl+3)"
+                    onClick={() => void handleModeChange('shadowing')}
+                  >
+                    {isGeneratingIPA && appMode === 'shadowing' ? (
+                      <span className="w-[18px] h-[18px] border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" aria-hidden />
+                    ) : (
+                      <Mic size={18} aria-hidden />
+                    )}
+                    <span className="mode-tab-label">Shadowing</span>
+                  </button>
+                </div>
               </div>
             )}
+
+            <div
+              ref={headerMenuRefDesktop}
+              className={`relative z-20 flex items-center justify-end shrink-0 ${
+                selectedItem ? 'hidden md:flex w-auto min-w-[44px]' : 'hidden md:flex md:w-[150px]'
+              }`}
+            >
+              {selectedItem ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setHeaderItemMenuOpen((o) => !o)}
+                    className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                    aria-expanded={headerItemMenuOpen}
+                    aria-label="Lesson or deck actions"
+                  >
+                    <MoreVertical size={22} aria-hidden />
+                  </button>
+                  {headerItemMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-40 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-30">
+                      <button
+                        type="button"
+                        onClick={handleHeaderRenameCurrent}
+                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center gap-2"
+                      >
+                        <Edit2 size={14} aria-hidden /> Rename
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleHeaderTrashCurrent}
+                        className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2"
+                      >
+                        <Trash2 size={14} aria-hidden /> Move to Trash
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
           </header>
 
           {/* Mobile Views (Only visible on mobile when no lesson is selected) */}
@@ -556,7 +753,7 @@ export default function NodaApp() {
                 <SidebarSection
                   type="lessons"
                   title="LESSONS"
-                  items={lessonsList.filter(l => !l.isTrashed && l.hasAudio).map(l => ({
+                  items={lessonsList.filter(l => !l.isTrashed && l.kind === 'audio').map(l => ({
                     id: l.id,
                     name: l.name,
                     language: l.language as 'en' | 'de',
@@ -565,6 +762,8 @@ export default function NodaApp() {
                     hasIpa: l.hasIpa,
                     type: 'lesson',
                   }))}
+                  isLoading={isListLoading}
+                  onEmptyAction={openNewLessonModal}
                   selectedItemId={selectedItem?.id}
                   expandedSections={expandedSections}
                   onToggleSection={(section, expanded) => setExpandedSections(prev => ({ ...prev, [section]: expanded }))}
@@ -577,8 +776,9 @@ export default function NodaApp() {
                       setLessonToDelete(id);
                     }
                   }}
-                  activeMenu={null}
-                  setActiveMenu={() => {}}
+                  onRenameLesson={handleRenameLesson}
+                  activeMenu={mobileSidebarMenuId}
+                  setActiveMenu={setMobileSidebarMenuId}
                 />
               </div>
             )}
@@ -594,13 +794,15 @@ export default function NodaApp() {
                 <SidebarSection
                   type="decks"
                   title="DECKS"
-                  items={lessonsList.filter(l => !l.isTrashed && !l.hasAudio).map(l => ({
+                  items={lessonsList.filter(l => !l.isTrashed && l.kind === 'flashcard').map(l => ({
                     id: l.id,
                     name: l.name,
                     language: l.language as 'en' | 'de' | 'mixed',
-                    cardCount: l.progress,
+                    cardCount: l.totalSentences,
                     type: 'deck',
                   }))}
+                  isLoading={isListLoading}
+                  onEmptyAction={openNewDeckModal}
                   selectedItemId={selectedItem?.id}
                   expandedSections={expandedSections}
                   onToggleSection={(section, expanded) => setExpandedSections(prev => ({ ...prev, [section]: expanded }))}
@@ -613,9 +815,9 @@ export default function NodaApp() {
                       setLessonToDelete(id);
                     }
                   }}
-                  activeMenu={null}
-                  setActiveMenu={() => {}}
-                  emptyMessage="No flashcard decks yet."
+                  onRenameLesson={handleRenameLesson}
+                  activeMenu={mobileSidebarMenuId}
+                  setActiveMenu={setMobileSidebarMenuId}
                 />
               </div>
             )}
@@ -671,40 +873,49 @@ export default function NodaApp() {
             )}
 
             {/* Content Area */}
-            {selectedItem?.type === 'lesson' && isStarted && (
-              <LessonView
-                lesson={selectedItem.data as LessonItem}
-                mode={appMode}
-                isPlaying={isPlaying}
-                duration={duration}
-                currentTime={currentTime}
-                playbackRate={playbackRate}
-                loopMode={loopMode}
-                isGeneratingIPA={isGeneratingIPA}
-                onPlayPause={togglePlayPause}
-                onSeek={handleSeek}
-                onSpeedChange={changeSpeed}
-                onModeChange={handleModeChange}
-                onLoopModeChange={toggleLoopMode}
-                transcript={transcript}
-                dictationInputs={dictationInputs}
-                completedSentences={completedSentences}
-                isRecording={isRecording}
-                spokenResults={spokenResults}
-                recognitionErrors={recognitionErrors}
-                ipaData={ipaData}
-                scrollContainerRef={scrollContainerRef}
-                onSentenceClick={handleSentenceClick}
-                onDictationChange={handleDictationChange}
-                onDictationKeyDown={handleDictationKeyDown}
-                onToggleRecording={toggleRecording}
-                onSkip={handleSkip}
-                onSimulateSuccess={handleSimulateSuccess}
-              />
+            {selectedItem?.type === 'lesson' && (
+              <div key={appMode} className="mode-content-fade flex flex-col flex-1 min-h-0">
+                <LessonView
+                  lesson={selectedItem.data as LessonItem}
+                  mode={appMode}
+                  isPlaying={isPlaying}
+                  duration={duration}
+                  currentTime={currentTime}
+                  playbackRate={playbackRate}
+                  loopMode={loopMode}
+                  isGeneratingIPA={isGeneratingIPA}
+                  onPlayPause={togglePlayPause}
+                  onSeek={handleSeek}
+                  onSpeedChange={changeSpeed}
+                  onModeChange={handleModeChange}
+                  onLoopModeChange={toggleLoopMode}
+                  transcript={transcript}
+                  dictationInputs={dictationInputs}
+                  completedSentences={completedSentences}
+                  isRecording={isRecording}
+                  spokenResults={spokenResults}
+                  recognitionErrors={recognitionErrors}
+                  ipaData={ipaData}
+                  scrollContainerRef={scrollContainerRef}
+                  onSentenceClick={handleSentenceClick}
+                  onDictationChange={handleDictationChange}
+                  onDictationKeyDown={handleDictationKeyDown}
+                  onToggleRecording={toggleRecording}
+                  onSkip={handleSkip}
+                  onSimulateSuccess={handleSimulateSuccess}
+                />
+              </div>
             )}
 
             {selectedItem?.type === 'deck' && (
-              <DeckView deck={selectedItem.data as DeckItem} />
+              <FlashcardViewer
+                deck={selectedItem.data as DeckItem}
+                onComplete={() => {
+                  setCleanupModalVariant('deck');
+                  setShowCleanupModal(true);
+                }}
+                onDeckUpdated={() => loadLessonsList()}
+              />
             )}
           </div>
         </div>
@@ -730,15 +941,36 @@ export default function NodaApp() {
       {/* Cleanup Modal */}
       <CleanupModal
         isOpen={showCleanupModal}
+        variant={cleanupModalVariant}
         onKeep={() => setShowCleanupModal(false)}
-        onCleanup={() => {
-          setShowCleanupModal(false);
-          if (selectedItem?.id) {
-            handleTrashLesson(selectedItem.id);
-            setSelectedItem(null);
-          }
-        }}
+        onRemoveAudio={
+          cleanupModalVariant === 'lesson'
+            ? async () => {
+                const id = selectedItem?.id;
+                if (!id || selectedItem?.type !== 'lesson') return;
+                setShowCleanupModal(false);
+                if (audioURL) {
+                  URL.revokeObjectURL(audioURL);
+                }
+                setAudioURL(null);
+                setAudioFile(null);
+                setIsPlaying(false);
+                await clearLessonMedia(id);
+                await handleLoadLesson(id);
+                await loadLessonsList();
+                setSelectedItem((prev) => {
+                  if (!prev || prev.id !== id || prev.type !== 'lesson') return prev;
+                  const d = prev.data as LessonItem;
+                  return { ...prev, data: { ...d, hasAudio: false } };
+                });
+              }
+            : undefined
+        }
       />
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
+      )}
 
       {/* Mobile Bottom Tab Bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 flex items-center justify-around p-2 z-40 pb-safe">

@@ -1,6 +1,9 @@
 import React from 'react';
 import { Player } from './Player';
 import { Transcript } from './Transcript';
+
+const MemoPlayer = React.memo(Player);
+const MemoTranscript = React.memo(Transcript);
 import { LessonItem, AppMode, Sentence, SpokenResult, DictationInputs, CompletedSentences, IPAData } from '@/types';
 
 interface LessonViewProps {
@@ -66,7 +69,7 @@ export function LessonView({
 }: LessonViewProps) {
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-6">
-      <Player
+      <MemoPlayer
         isPlaying={isPlaying}
         duration={duration}
         currentTime={currentTime}
@@ -81,7 +84,7 @@ export function LessonView({
         onLoopModeChange={onLoopModeChange}
       />
 
-      <Transcript
+      <MemoTranscript
         transcript={transcript}
         currentTime={currentTime}
         appMode={mode}

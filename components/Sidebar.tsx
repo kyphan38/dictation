@@ -9,6 +9,7 @@ interface SidebarProps {
   isOpen: boolean;
   onToggle: (open: boolean) => void;
   lessons: LessonSummary[];
+  isListLoading?: boolean;
   selectedItemId?: string;
   expandedSections: ExpandedSections;
   onItemSelect: (item: LessonItem | DeckItem) => void;
@@ -24,6 +25,7 @@ export function Sidebar({
   isOpen,
   onToggle,
   lessons,
+  isListLoading = false,
   selectedItemId,
   expandedSections,
   onItemSelect,
@@ -36,9 +38,9 @@ export function Sidebar({
 }: SidebarProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
-  // Map LessonSummary to the new types based on hasAudio
+  // Map LessonSummary to sidebar items (kind separates audio lessons vs flashcard decks)
   const activeLessons: LessonItem[] = lessons
-    .filter((l) => !l.isTrashed && l.hasAudio)
+    .filter((l) => !l.isTrashed && l.kind === 'audio')
     .map((l) => ({
       id: l.id,
       name: l.name,
@@ -50,12 +52,12 @@ export function Sidebar({
     }));
 
   const activeDecks: DeckItem[] = lessons
-    .filter((l) => !l.isTrashed && !l.hasAudio)
+    .filter((l) => !l.isTrashed && l.kind === 'flashcard')
     .map((l) => ({
       id: l.id,
       name: l.name,
       language: l.language as 'en' | 'de' | 'mixed',
-      cardCount: l.progress, // Using progress as a proxy for card count since it's the only number available
+      cardCount: l.totalSentences,
       type: 'deck',
     }));
 
@@ -64,7 +66,7 @@ export function Sidebar({
     .map((l) => ({
       id: l.id,
       name: l.name,
-      originalType: l.hasAudio ? 'lesson' : 'deck',
+      originalType: l.kind === 'flashcard' ? 'deck' : 'lesson',
       language: l.language,
     }));
 
@@ -109,18 +111,22 @@ export function Sidebar({
             </div>
           </div>
 
-          <div className="actions-container flex flex-col gap-2 p-4">
+          <div className="actions-container flex flex-row gap-2 p-4">
             <button
               onClick={onNewLesson}
-              className="btn-new-lesson w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center justify-center gap-2 font-medium transition-colors"
+              className="btn-new-lesson flex-1 py-2 px-2 text-sm bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors"
+              title="New audio lesson"
             >
-              <Music2 size={18} /> + New Lesson
+              <Music2 size={16} aria-hidden />
+              <span>+ Audio</span>
             </button>
             <button
               onClick={onNewDeck}
-              className="btn-new-deck w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center gap-2 font-medium transition-colors"
+              className="btn-new-deck flex-1 py-2 px-2 text-sm bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors"
+              title="New flashcard deck"
             >
-              <Layers size={18} /> + New Deck
+              <Layers size={16} aria-hidden />
+              <span>+ Deck</span>
             </button>
           </div>
 
@@ -130,6 +136,8 @@ export function Sidebar({
               type="lessons"
               title="LESSONS"
               items={activeLessons}
+              isLoading={isListLoading}
+              onEmptyAction={onNewLesson}
               selectedItemId={selectedItemId}
               expandedSections={expandedSections}
               onToggleSection={onToggleSection}
@@ -145,6 +153,8 @@ export function Sidebar({
               type="decks"
               title="DECKS"
               items={activeDecks}
+              isLoading={isListLoading}
+              onEmptyAction={onNewDeck}
               selectedItemId={selectedItemId}
               expandedSections={expandedSections}
               onToggleSection={onToggleSection}
@@ -153,7 +163,6 @@ export function Sidebar({
               onRenameLesson={onRenameLesson}
               activeMenu={activeMenu}
               setActiveMenu={setActiveMenu}
-              emptyMessage="No flashcard decks yet."
             />
 
             {/* Trash Section */}
@@ -161,6 +170,7 @@ export function Sidebar({
               type="trash"
               title="TRASH & CACHE"
               items={trashItems}
+              isLoading={isListLoading}
               selectedItemId={selectedItemId}
               expandedSections={expandedSections}
               onToggleSection={onToggleSection}

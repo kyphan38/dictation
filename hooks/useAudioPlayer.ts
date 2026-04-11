@@ -21,6 +21,13 @@ export function useAudioPlayer() {
     loopModeRef.current = loopMode;
   }, [loopMode]);
 
+  useEffect(() => {
+    setIsPlaying(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+  }, [audioURL]);
+
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
