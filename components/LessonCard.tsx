@@ -6,7 +6,7 @@ interface LessonCardProps {
   lesson: LessonItem;
   selectedItemId?: string;
   onItemSelect: (item: LessonItem) => void;
-  onTrashLesson: (id: string) => void;
+  onDeleteLesson: (id: string) => void;
   onRenameLesson?: (id: string, newName: string) => void;
   activeMenu: string | null;
   setActiveMenu: (id: string | null) => void;
@@ -16,7 +16,7 @@ export function LessonCard({
   lesson,
   selectedItemId,
   onItemSelect,
-  onTrashLesson,
+  onDeleteLesson,
   onRenameLesson,
   activeMenu,
   setActiveMenu
@@ -142,12 +142,12 @@ export function LessonCard({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onTrashLesson(lesson.id);
                       setActiveMenu(null);
+                      onDeleteLesson(lesson.id);
                     }}
                     className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
                   >
-                    <Trash2 size={14} /> Move to Trash
+                    <Trash2 size={14} /> Delete
                   </button>
                 </div>
               )}

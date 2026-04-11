@@ -1,14 +1,15 @@
 import { useEffect, type MutableRefObject, type RefObject } from 'react';
-import type { AppMode } from '@/types';
-import type { Sentence } from '@/types';
+import type { AppMode, Sentence } from '@/types';
 
 type ModeChange = (mode: AppMode) => void | Promise<void>;
 
 /**
- * Space / L / R / Ctrl replay-at-sentence-start, and ⌘1–3 mode switching for audio lessons.
+ * Space / L / R / Ctrl replay-at-sentence-start, H toggles captions in normal mode, and ⌘1–3 mode switching for audio lessons.
  */
 export function useGlobalPlaybackShortcuts(
   selectedItemType: 'lesson' | 'deck' | undefined,
+  appMode: AppMode,
+  toggleHideCaptions: (() => void) | undefined,
   handleModeChange: ModeChange,
   togglePlayPause: () => void,
   toggleLoopMode: () => void,
@@ -19,7 +20,31 @@ export function useGlobalPlaybackShortcuts(
 ) {
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      const t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (t instanceof HTMLElement && t.isContentEditable) {
+        return;
+      }
+      const ae = document.activeElement;
+      if (ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (ae instanceof HTMLElement && ae.isContentEditable) {
+        return;
+      }
+
+      if (
+        e.code === 'KeyH' &&
+        selectedItemType === 'lesson' &&
+        appMode === 'normal' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        toggleHideCaptions?.();
         return;
       }
 
@@ -69,6 +94,8 @@ export function useGlobalPlaybackShortcuts(
     isLoopDelayingRef,
     audioRef,
     selectedItemType,
+    appMode,
+    toggleHideCaptions,
     handleModeChange,
     activeSentenceRef,
   ]);

@@ -5,10 +5,17 @@ interface CleanupModalProps {
   isOpen: boolean;
   onKeep: () => void;
   onRemoveAudio?: () => void | Promise<void>;
+  onDeleteDeck?: () => void | Promise<void>;
   variant?: 'lesson' | 'deck';
 }
 
-export function CleanupModal({ isOpen, onKeep, onRemoveAudio, variant = 'lesson' }: CleanupModalProps) {
+export function CleanupModal({
+  isOpen,
+  onKeep,
+  onRemoveAudio,
+  onDeleteDeck,
+  variant = 'lesson',
+}: CleanupModalProps) {
   if (!isOpen) return null;
 
   const isDeck = variant === 'deck';
@@ -19,39 +26,49 @@ export function CleanupModal({ isOpen, onKeep, onRemoveAudio, variant = 'lesson'
         <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
           <PartyPopper className="w-8 h-8 text-emerald-500" />
         </div>
-        <h3 className="text-xl font-bold text-white mb-2">Congratulations!</h3>
         {isDeck ? (
           <>
+            <h3 className="text-xl font-bold text-white mb-2">Deck complete!</h3>
             <p className="text-gray-400 mb-6 text-sm leading-relaxed">
-              You finished this deck session. Keep studying whenever you like.
+              You&apos;ve reviewed all cards in this deck. Delete it from this device to free space?
             </p>
-            <button
-              type="button"
-              onClick={onKeep}
-              className="w-full px-4 py-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-medium transition-colors"
-            >
-              Continue
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => void onDeleteDeck?.()}
+                className="w-full px-4 py-3 rounded-xl bg-red-600/90 hover:bg-red-500 text-white font-medium transition-colors active:scale-[0.98]"
+              >
+                Delete deck
+              </button>
+              <button
+                type="button"
+                onClick={onKeep}
+                className="w-full px-4 py-3 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 font-medium transition-colors active:scale-[0.98]"
+              >
+                Keep deck
+              </button>
+            </div>
           </>
         ) : (
           <>
+            <h3 className="text-xl font-bold text-white mb-2">Dictation complete!</h3>
             <p className="text-gray-400 mb-6 text-sm leading-relaxed">
-              You completed dictation for this lesson. Remove the audio file from this device to save space? Your transcript and progress stay saved.
+              You&apos;ve mastered all sentences in this lesson. Remove the audio file from this device to save space? Your transcript and progress stay saved.
             </p>
             <div className="flex flex-col gap-3">
               <button
                 type="button"
                 onClick={() => void onRemoveAudio?.()}
-                className="w-full px-4 py-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-medium transition-colors"
+                className="w-full px-4 py-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-medium transition-colors active:scale-[0.98]"
               >
-                Remove audio only
+                Clean up media
               </button>
               <button
                 type="button"
                 onClick={onKeep}
-                className="w-full px-4 py-3 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 font-medium transition-colors"
+                className="w-full px-4 py-3 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 font-medium transition-colors active:scale-[0.98]"
               >
-                Keep audio
+                Keep files
               </button>
             </div>
           </>

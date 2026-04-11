@@ -11,13 +11,12 @@ export const DEFAULT_LOOP_MODE = 'none' as const;
 export const DEFAULT_APP_MODE = 'normal' as const;
 
 // Sidebar sections
-export const SIDEBAR_SECTIONS = ['audio-en', 'audio-de', 'flashcard-en', 'flashcard-de', 'trash'] as const;
+export const SIDEBAR_SECTIONS = ['audio-en', 'audio-de', 'flashcard-en', 'flashcard-de'] as const;
 export const SECTION_LABELS: Record<string, string> = {
-  'audio-en': 'English Audio',
-  'audio-de': 'German Audio',
-  'flashcard-en': 'English Flashcards',
-  'flashcard-de': 'German Flashcards',
-  'trash': 'Trash & Cache',
+  'audio-en': 'EN',
+  'audio-de': 'DE',
+  'flashcard-en': 'EN',
+  'flashcard-de': 'DE',
 };
 
 // Languages

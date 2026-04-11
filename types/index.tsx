@@ -9,7 +9,6 @@ export type Sentence = {
 // Learning modes
 export type LoopMode = 'none' | 'all' | 'one';
 export type AppMode = 'normal' | 'dictation' | 'shadowing' | 'flashcard';
-export type AppTab = 'Lessons' | 'Flashcards' | 'Stats';
 // Pronunciation result
 export type SpokenResult = {
   text: string;
@@ -73,6 +72,8 @@ export interface DeckItem {
   name: string;
   language: 'en' | 'de' | 'mixed';
   cardCount: number;
+  /** Cards marked Done / total (persisted), same scale as lesson sidebar progress. */
+  progress: number;
   type: 'deck'; // CRITICAL: để phân biệt với lesson
 }
 

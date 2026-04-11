@@ -110,7 +110,7 @@ export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLesson
             <div className="noda-ipa-bar-track" aria-hidden>
               <div className="noda-ipa-bar-fill" />
             </div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-gray-500">Đang tạo IPA</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-gray-500">Generating IPA</p>
           </div>
         )}
 
@@ -221,10 +221,10 @@ export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLesson
                 </span>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium text-gray-200">Auto-generate IPA (Noda)</span>
+                <span className="block text-sm font-medium text-gray-200">Auto-generate IPA</span>
                 <span className="mt-1 block text-xs text-gray-500 leading-relaxed">
                   {transcriptFile
-                    ? 'Hiển thị IPA dưới mỗi dòng trong chế độ Shadowing. Chạy một lần sau khi tạo bài.'
+                    ? 'Show IPA under each line in Shadowing mode. Runs once after you create the lesson.'
                     : 'Thêm file transcript (.srt) phía trên để bật tùy chọn này.'}
                 </span>
               </span>
@@ -241,7 +241,7 @@ export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLesson
             disabled={!audioFile || !lessonName || isGeneratingIPA}
             onClick={handleSubmit}
           >
-            {isCreatingWithIPA ? 'Đang tạo IPA…' : 'Create Lesson'}
+            {isCreatingWithIPA ? 'Generating IPA…' : 'Create Lesson'}
           </button>
         </div>
       </div>

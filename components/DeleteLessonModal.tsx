@@ -16,9 +16,9 @@ export function DeleteLessonModal({ lessonId, onCancel, onConfirmDelete }: Delet
         <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
           <Trash2 className="w-6 h-6 text-red-500" />
         </div>
-        <h3 className="text-xl font-bold text-white mb-2">Delete Lesson?</h3>
+        <h3 className="text-xl font-bold text-white mb-2">Delete item?</h3>
         <p className="text-gray-400 mb-6 text-sm leading-relaxed">
-          Are you sure you want to delete this lesson? All your progress, audio files, and transcripts will be permanently removed.
+          This removes the lesson or deck and all saved data from this device. This cannot be undone.
         </p>
         <div className="flex justify-end gap-3">
           <button

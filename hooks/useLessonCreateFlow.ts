@@ -1,5 +1,5 @@
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
-import { parseTranscript } from '@/lib/utils';
+import { parseTranscript, uniquifyName } from '@/lib/utils';
 import { saveLesson } from '@/lib/db';
 import type { AppMode, DeckItem, LessonItem, Sentence } from '@/types';
 
@@ -19,7 +19,8 @@ export function useLessonCreateFlow(
   handleModeChange: (mode: AppMode) => void | Promise<void>,
   setUploadMode: (m: 'idle' | 'lesson' | 'deck') => void,
   setToast: SetToast,
-  fetchIPA: FetchIPA
+  fetchIPA: FetchIPA,
+  getTakenNames: () => string[]
 ) {
   const handleLessonCreated = useCallback(
     async (data: {
@@ -37,11 +38,13 @@ export function useLessonCreateFlow(
 
         const sentences = parseTranscript(text);
         const lessonId = Date.now().toString();
+        const baseName = data.name.trim() || 'Untitled lesson';
+        const uniqueName = uniquifyName(baseName, getTakenNames());
 
         const newLesson = {
           id: lessonId,
           type: 'audio' as const,
-          name: data.name,
+          name: uniqueName,
           language: data.language,
           audioFile: data.audioFile,
           transcriptText: text,
@@ -56,7 +59,7 @@ export function useLessonCreateFlow(
 
         const lessonItem: LessonItem = {
           id: lessonId,
-          name: data.name,
+          name: uniqueName,
           language: data.language,
           progress: 0,
           hasAudio: true,
@@ -80,17 +83,17 @@ export function useLessonCreateFlow(
         if (!ipaOk) {
           setToast({
             message:
-              'Noda: Lesson created, but IPA generation failed. Set NEXT_PUBLIC_GEMINI_API_KEY in .env.local, restart dev server, and check the browser console.',
+              'Lesson saved. IPA generation failed — set NEXT_PUBLIC_GEMINI_API_KEY, restart the dev server, and check the console.',
             type: 'error',
           });
         } else {
-          setToast({ message: 'Đã tạo bài học.', type: 'success' });
+          setToast({ message: 'Lesson created.', type: 'success' });
         }
       } catch {
-        setToast({ message: 'Không tạo được bài học.', type: 'error' });
+        setToast({ message: 'Could not create lesson.', type: 'error' });
       }
     },
-    [setSelectedItem, handleLoadLesson, handleModeChange, setUploadMode, setToast, fetchIPA]
+    [setSelectedItem, handleLoadLesson, handleModeChange, setUploadMode, setToast, fetchIPA, getTakenNames]
   );
 
   const handleDeckCreated = useCallback(
@@ -102,11 +105,13 @@ export function useLessonCreateFlow(
           .filter((line) => line.length > 0);
 
         const lessonId = Date.now().toString();
+        const baseName = deckData.name.trim() || 'Untitled deck';
+        const uniqueName = uniquifyName(baseName, getTakenNames());
 
         const newLesson = {
           id: lessonId,
           type: 'flashcard' as const,
-          name: deckData.name,
+          name: uniqueName,
           language: deckData.language,
           transcriptText: '',
           ipaData: {},
@@ -127,9 +132,10 @@ export function useLessonCreateFlow(
 
         const deckItem: DeckItem = {
           id: lessonId,
-          name: deckData.name,
+          name: uniqueName,
           language: deckData.language,
           cardCount: lines.length,
+          progress: 0,
           type: 'deck',
         };
 
@@ -141,12 +147,12 @@ export function useLessonCreateFlow(
 
         await handleLoadLesson(lessonId);
         setUploadMode('idle');
-        setToast({ message: 'Deck created successfully.', type: 'success' });
+        setToast({ message: 'Deck created.', type: 'success' });
       } catch {
-        setToast({ message: 'Không tạo được bộ thẻ.', type: 'error' });
+        setToast({ message: 'Could not create deck.', type: 'error' });
       }
     },
-    [setSelectedItem, handleLoadLesson, setUploadMode, setToast]
+    [setSelectedItem, handleLoadLesson, setUploadMode, setToast, getTakenNames]
   );
 
   return { handleLessonCreated, handleDeckCreated };

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AppMode } from '@/types';
+import type { AppMode, Sentence } from '@/types';
 
 type Selected = { id: string; type: 'lesson' | 'deck' } | null;
+
+function completedCount(transcript: Sentence[], completedSentences: Record<number, boolean>): number {
+  return transcript.filter((s) => completedSentences[s.id]).length;
+}
 
 /**
  * Opens the post-dictation cleanup modal when all sentences are completed in dictation mode.
@@ -9,7 +13,7 @@ type Selected = { id: string; type: 'lesson' | 'deck' } | null;
 export function useDictationCompletionModal(
   selectedItem: Selected,
   isStarted: boolean,
-  transcriptLength: number,
+  transcript: Sentence[],
   appMode: AppMode,
   completedSentences: Record<number, boolean>
 ) {
@@ -20,22 +24,23 @@ export function useDictationCompletionModal(
 
   useEffect(() => {
     const id = selectedItem?.id ?? null;
+    const total = transcript.length;
+
     if (id !== prevLessonIdForCompletionRef.current) {
       prevLessonIdForCompletionRef.current = id;
-      if (id && selectedItem?.type === 'lesson' && isStarted && transcriptLength > 0) {
-        prevCompletedCountRef.current = Object.keys(completedSentences).length;
+      if (id && selectedItem?.type === 'lesson' && isStarted && total > 0) {
+        prevCompletedCountRef.current = completedCount(transcript, completedSentences);
       } else {
         prevCompletedCountRef.current = -1;
       }
       return;
     }
 
-    if (!id || selectedItem?.type !== 'lesson' || !isStarted || transcriptLength === 0) {
+    if (!id || selectedItem?.type !== 'lesson' || !isStarted || total === 0) {
       return;
     }
 
-    const currentCount = Object.keys(completedSentences).length;
-    const total = transcriptLength;
+    const currentCount = completedCount(transcript, completedSentences);
 
     if (
       appMode === 'dictation' &&
@@ -48,7 +53,7 @@ export function useDictationCompletionModal(
     }
 
     prevCompletedCountRef.current = currentCount;
-  }, [selectedItem?.id, selectedItem?.type, appMode, completedSentences, transcriptLength, isStarted]);
+  }, [selectedItem?.id, selectedItem?.type, appMode, completedSentences, transcript, isStarted]);
 
   return {
     showCleanupModal,

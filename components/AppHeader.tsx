@@ -20,7 +20,7 @@ export interface AppHeaderProps {
   setHeaderItemMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   headerMenuRef: RefObject<HTMLDivElement | null>;
   onRenameCurrent: () => void;
-  onTrashCurrent: () => void;
+  onDeleteCurrent: () => void;
 }
 
 export function AppHeader({
@@ -33,7 +33,7 @@ export function AppHeader({
   setHeaderItemMenuOpen,
   headerMenuRef,
   onRenameCurrent,
-  onTrashCurrent,
+  onDeleteCurrent,
 }: AppHeaderProps) {
   return (
     <header className="app-header">
@@ -125,10 +125,10 @@ export function AppHeader({
                 </button>
                 <button
                   type="button"
-                  onClick={onTrashCurrent}
+                  onClick={onDeleteCurrent}
                   className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2"
                 >
-                  <Trash2 size={14} aria-hidden /> Move to Trash
+                  <Trash2 size={14} aria-hidden /> Delete
                 </button>
               </div>
             )}

@@ -19,8 +19,10 @@ interface LessonViewProps {
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSpeedChange: () => void;
-  onModeChange: (mode: AppMode) => void;
   onLoopModeChange: () => void;
+  onResetDictation?: () => void;
+  hideCaptions?: boolean;
+  onToggleHideCaptions?: () => void;
   // Transcript props
   transcript: Sentence[];
   dictationInputs: DictationInputs;
@@ -33,6 +35,7 @@ interface LessonViewProps {
   onSentenceClick: (sentence: Sentence) => void;
   onDictationChange: (sentence: Sentence, value: string) => void;
   onDictationKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, sentence: Sentence) => void;
+  onDictationRetry: (sentence: Sentence) => void;
   onToggleRecording: (sentence: Sentence) => void;
   onSkip: (sentence: Sentence) => void;
   onSimulateSuccess: (sentence: Sentence) => void;
@@ -50,7 +53,6 @@ export function LessonView({
   onPlayPause,
   onSeek,
   onSpeedChange,
-  onModeChange,
   onLoopModeChange,
   transcript,
   dictationInputs,
@@ -63,9 +65,13 @@ export function LessonView({
   onSentenceClick,
   onDictationChange,
   onDictationKeyDown,
+  onDictationRetry,
   onToggleRecording,
   onSkip,
-  onSimulateSuccess
+  onSimulateSuccess,
+  onResetDictation,
+  hideCaptions,
+  onToggleHideCaptions,
 }: LessonViewProps) {
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-6">
@@ -74,13 +80,11 @@ export function LessonView({
         duration={duration}
         currentTime={currentTime}
         playbackRate={playbackRate}
-        appMode={mode}
         loopMode={loopMode}
         isGeneratingIPA={isGeneratingIPA}
         onPlayPause={onPlayPause}
         onSeek={onSeek}
         onSpeedChange={onSpeedChange}
-        onModeChange={onModeChange}
         onLoopModeChange={onLoopModeChange}
       />
 
@@ -88,6 +92,9 @@ export function LessonView({
         transcript={transcript}
         currentTime={currentTime}
         appMode={mode}
+        hideCaptions={hideCaptions}
+        onToggleHideCaptions={onToggleHideCaptions}
+        onResetDictation={onResetDictation}
         dictationInputs={dictationInputs}
         completedSentences={completedSentences}
         isRecording={isRecording}
@@ -98,6 +105,7 @@ export function LessonView({
         onSentenceClick={onSentenceClick}
         onDictationChange={onDictationChange}
         onDictationKeyDown={onDictationKeyDown}
+        onDictationRetry={onDictationRetry}
         onToggleRecording={onToggleRecording}
         onSkip={onSkip}
         onSimulateSuccess={onSimulateSuccess}

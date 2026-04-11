@@ -1,21 +1,20 @@
 import React from 'react';
-import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
-import { LessonSummary, LessonItem, DeckItem, TrashItem } from '@/types';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { LessonItem, DeckItem } from '@/types';
 import { LessonCard } from './LessonCard';
 import { DeckCard } from './DeckCard';
-import { TrashCard } from './TrashCard';
-import { LessonCardSkeleton, DeckCardSkeleton, TrashCardSkeleton } from './LoadingSkeleton';
+import { LessonCardSkeleton, DeckCardSkeleton } from './LoadingSkeleton';
 import { EmptyState } from './EmptyState';
 
 interface SidebarSectionProps {
-  type: 'lessons' | 'decks' | 'trash';
+  type: 'lessons' | 'decks';
   title: string;
-  items: any[]; // Using any[] to accept LessonItem[], DeckItem[], or TrashItem[]
+  items: LessonItem[] | DeckItem[];
   selectedItemId?: string;
   expandedSections: Record<string, boolean>;
   onToggleSection: (section: string, expanded: boolean) => void;
   onItemSelect: (item: LessonItem | DeckItem) => void;
-  onTrashLesson: (id: string) => void;
+  onDeleteLesson: (id: string) => void;
   onRenameLesson?: (id: string, newName: string) => void;
   activeMenu: string | null;
   setActiveMenu: (id: string | null) => void;
@@ -31,7 +30,7 @@ export function SidebarSection({
   expandedSections,
   onToggleSection,
   onItemSelect,
-  onTrashLesson,
+  onDeleteLesson,
   onRenameLesson,
   activeMenu,
   setActiveMenu,
@@ -47,10 +46,7 @@ export function SidebarSection({
         onClick={toggleSection}
         className="w-full flex items-center justify-between px-3 py-2 text-sm font-bold text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors duration-200"
       >
-        <span className="flex items-center gap-2">
-          {type === 'trash' && <Trash2 size={15} />}
-          {title}
-        </span>
+        <span>{title}</span>
         {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
       </button>
 
@@ -72,35 +68,29 @@ export function SidebarSection({
             </div>
           )}
 
-          {isLoading && type === 'trash' && (
-            <div className="space-y-1 px-1">
-              <TrashCardSkeleton />
-              <TrashCardSkeleton />
-            </div>
-          )}
-
-          {!isLoading && items.length === 0 && (type === 'lessons' || type === 'decks' || type === 'trash') && (
+          {!isLoading && items.length === 0 && (type === 'lessons' || type === 'decks') && (
             <EmptyState type={type} />
           )}
 
           {!isLoading && type === 'lessons' && items.length > 0 && (() => {
-            const enLessons = items.filter((i: LessonItem) => i.language === 'en');
-            const deLessons = items.filter((i: LessonItem) => i.language === 'de');
+            const list = items as LessonItem[];
+            const enLessons = list.filter((i) => i.language === 'en');
+            const deLessons = list.filter((i) => i.language === 'de');
             return (
               <>
                 {enLessons.length > 0 && (
                   <Accordion
-                    title="🇬🇧 English"
+                    title="EN"
                     isExpanded={expandedSections['audio-en'] ?? true}
                     onToggle={() => onToggleSection('audio-en', !(expandedSections['audio-en'] ?? true))}
                   >
-                    {enLessons.map((lesson: LessonItem) => (
+                    {enLessons.map((lesson) => (
                       <LessonCard
                         key={lesson.id}
                         lesson={lesson}
                         selectedItemId={selectedItemId}
                         onItemSelect={onItemSelect}
-                        onTrashLesson={onTrashLesson}
+                        onDeleteLesson={onDeleteLesson}
                         onRenameLesson={onRenameLesson}
                         activeMenu={activeMenu}
                         setActiveMenu={setActiveMenu}
@@ -110,17 +100,17 @@ export function SidebarSection({
                 )}
                 {deLessons.length > 0 && (
                   <Accordion
-                    title="🇩🇪 German"
+                    title="DE"
                     isExpanded={expandedSections['audio-de'] ?? false}
                     onToggle={() => onToggleSection('audio-de', !(expandedSections['audio-de'] ?? false))}
                   >
-                    {deLessons.map((lesson: LessonItem) => (
+                    {deLessons.map((lesson) => (
                       <LessonCard
                         key={lesson.id}
                         lesson={lesson}
                         selectedItemId={selectedItemId}
                         onItemSelect={onItemSelect}
-                        onTrashLesson={onTrashLesson}
+                        onDeleteLesson={onDeleteLesson}
                         onRenameLesson={onRenameLesson}
                         activeMenu={activeMenu}
                         setActiveMenu={setActiveMenu}
@@ -132,60 +122,84 @@ export function SidebarSection({
             );
           })()}
 
-          {!isLoading && type === 'decks' && items.length > 0 && (
-            <div className="space-y-1">
-              {items.map((deck: DeckItem) => (
-                <DeckCard
-                  key={deck.id}
-                  deck={deck}
-                  selectedItemId={selectedItemId}
-                  onItemSelect={onItemSelect}
-                  onTrashLesson={onTrashLesson}
-                  onRenameLesson={onRenameLesson}
-                  activeMenu={activeMenu}
-                  setActiveMenu={setActiveMenu}
-                />
-              ))}
-            </div>
-          )}
-
-          {!isLoading && type === 'trash' && items.length > 0 && (
-            <div className="space-y-1">
-              {items.map((item: TrashItem) => (
-                <TrashCard
-                  key={item.id}
-                  id={item.id}
-                  name={item.name}
-                  originalType={item.originalType}
-                  language={item.language}
-                  onDeletePermanently={onTrashLesson}
-                />
-              ))}
-            </div>
-          )}
-
+          {!isLoading && type === 'decks' && items.length > 0 && (() => {
+            const list = items as DeckItem[];
+            const enDecks = list.filter((d) => d.language === 'en' || d.language === 'mixed');
+            const deDecks = list.filter((d) => d.language === 'de');
+            return (
+              <>
+                {enDecks.length > 0 && (
+                  <Accordion
+                    title="EN"
+                    isExpanded={expandedSections['flashcard-en'] ?? true}
+                    onToggle={() => onToggleSection('flashcard-en', !(expandedSections['flashcard-en'] ?? true))}
+                  >
+                    {enDecks.map((deck) => (
+                      <DeckCard
+                        key={deck.id}
+                        deck={deck}
+                        selectedItemId={selectedItemId}
+                        onItemSelect={onItemSelect}
+                        onDeleteLesson={onDeleteLesson}
+                        onRenameLesson={onRenameLesson}
+                        activeMenu={activeMenu}
+                        setActiveMenu={setActiveMenu}
+                      />
+                    ))}
+                  </Accordion>
+                )}
+                {deDecks.length > 0 && (
+                  <Accordion
+                    title="DE"
+                    isExpanded={expandedSections['flashcard-de'] ?? false}
+                    onToggle={() =>
+                      onToggleSection('flashcard-de', !(expandedSections['flashcard-de'] ?? false))
+                    }
+                  >
+                    {deDecks.map((deck) => (
+                      <DeckCard
+                        key={deck.id}
+                        deck={deck}
+                        selectedItemId={selectedItemId}
+                        onItemSelect={onItemSelect}
+                        onDeleteLesson={onDeleteLesson}
+                        onRenameLesson={onRenameLesson}
+                        activeMenu={activeMenu}
+                        setActiveMenu={setActiveMenu}
+                      />
+                    ))}
+                  </Accordion>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
   );
 }
 
-// Helper Accordion component for lessons
-function Accordion({ title, isExpanded, onToggle, children }: { title: string, isExpanded: boolean, onToggle: () => void, children: React.ReactNode }) {
+function Accordion({
+  title,
+  isExpanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-base font-medium text-gray-300 hover:text-white transition-colors duration-200"
+        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-200 transition-colors duration-200"
       >
         <span>{title}</span>
-        {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
-      {isExpanded && (
-        <div className="space-y-1">
-          {children}
-        </div>
-      )}
+      {isExpanded && <div className="space-y-1">{children}</div>}
     </div>
   );
 }

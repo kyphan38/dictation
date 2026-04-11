@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Music2, Layers, LogOut, PanelLeft } from 'lucide-react';
-import { LessonSummary, ExpandedSections, LessonItem, DeckItem, TrashItem } from '@/types';
+import { LessonSummary, ExpandedSections, LessonItem, DeckItem } from '@/types';
 import { SidebarSection } from './SidebarSection';
 
 interface SidebarProps {
@@ -15,7 +15,7 @@ interface SidebarProps {
   onItemSelect: (item: LessonItem | DeckItem) => void;
   onNewLesson: () => void;
   onNewDeck: () => void;
-  onTrashLesson: (id: string) => void;
+  onDeleteLesson: (id: string) => void;
   onRenameLesson?: (id: string, newName: string) => void;
   onLogout: () => void;
   onToggleSection: (section: string, expanded: boolean) => void;
@@ -31,14 +31,13 @@ export function Sidebar({
   onItemSelect,
   onNewLesson,
   onNewDeck,
-  onTrashLesson,
+  onDeleteLesson,
   onRenameLesson,
   onLogout,
   onToggleSection,
 }: SidebarProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
-  // Map LessonSummary to sidebar items (kind separates audio lessons vs flashcard decks)
   const activeLessons: LessonItem[] = lessons
     .filter((l) => !l.isTrashed && l.kind === 'audio')
     .map((l) => ({
@@ -58,16 +57,8 @@ export function Sidebar({
       name: l.name,
       language: l.language as 'en' | 'de' | 'mixed',
       cardCount: l.totalSentences,
+      progress: l.progress,
       type: 'deck',
-    }));
-
-  const trashItems: TrashItem[] = lessons
-    .filter((l) => l.isTrashed)
-    .map((l) => ({
-      id: l.id,
-      name: l.name,
-      originalType: l.kind === 'flashcard' ? 'deck' : 'lesson',
-      language: l.language,
     }));
 
   return (
@@ -81,9 +72,7 @@ export function Sidebar({
           }`}
         >
           <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              Noda.
-            </h2>
+            <h2 className="text-xl font-bold text-white">Noda.</h2>
             <div className="flex items-center gap-1">
               <button
                 onClick={onLogout}
@@ -105,7 +94,7 @@ export function Sidebar({
           <div className="actions-container flex flex-row gap-2 p-4">
             <button
               onClick={onNewLesson}
-              className="btn-new-lesson flex-1 py-2.5 px-2 text-base bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
+              className="btn-new-lesson flex-1 py-2.5 px-2 text-sm bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
               title="New audio lesson"
             >
               <Music2 size={16} aria-hidden />
@@ -113,7 +102,7 @@ export function Sidebar({
             </button>
             <button
               onClick={onNewDeck}
-              className="btn-new-deck flex-1 py-2.5 px-2 text-base bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
+              className="btn-new-deck flex-1 py-2.5 px-2 text-sm bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
               title="New flashcard deck"
             >
               <Layers size={16} aria-hidden />
@@ -122,7 +111,6 @@ export function Sidebar({
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-6">
-            {/* Audio Lessons Section */}
             <SidebarSection
               type="lessons"
               title="LESSONS"
@@ -132,13 +120,12 @@ export function Sidebar({
               expandedSections={expandedSections}
               onToggleSection={onToggleSection}
               onItemSelect={onItemSelect}
-              onTrashLesson={onTrashLesson}
+              onDeleteLesson={onDeleteLesson}
               onRenameLesson={onRenameLesson}
               activeMenu={activeMenu}
               setActiveMenu={setActiveMenu}
             />
 
-            {/* Flashcards Section */}
             <SidebarSection
               type="decks"
               title="DECKS"
@@ -148,23 +135,7 @@ export function Sidebar({
               expandedSections={expandedSections}
               onToggleSection={onToggleSection}
               onItemSelect={onItemSelect}
-              onTrashLesson={onTrashLesson}
-              onRenameLesson={onRenameLesson}
-              activeMenu={activeMenu}
-              setActiveMenu={setActiveMenu}
-            />
-
-            {/* Trash Section */}
-            <SidebarSection
-              type="trash"
-              title="TRASH & CACHE"
-              items={trashItems}
-              isLoading={isListLoading}
-              selectedItemId={selectedItemId}
-              expandedSections={expandedSections}
-              onToggleSection={onToggleSection}
-              onItemSelect={onItemSelect}
-              onTrashLesson={onTrashLesson}
+              onDeleteLesson={onDeleteLesson}
               onRenameLesson={onRenameLesson}
               activeMenu={activeMenu}
               setActiveMenu={setActiveMenu}

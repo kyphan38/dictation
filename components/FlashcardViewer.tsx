@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { X, Meh, Smile, Target, CheckCircle2 } from 'lucide-react';
 import { useFlashcardEngine } from '@/hooks/useFlashcardEngine';
+import type { FlashcardRating } from '@/hooks/useFlashcardEngine';
 import { DeckItem } from '@/types';
 import { getLesson, saveLesson } from '@/lib/db';
 
@@ -26,6 +28,7 @@ export function FlashcardViewer({ deck, onComplete, onDeckUpdated }: FlashcardVi
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editText, setEditText] = useState('');
+  const [clickFlash, setClickFlash] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -48,7 +51,57 @@ export function FlashcardViewer({ deck, onComplete, onDeckUpdated }: FlashcardVi
     reload();
   }, [reload]);
 
-  const engine = useFlashcardEngine(lines, onComplete);
+  const onPersistRate = useCallback(
+    (lineIndex: number, rating: FlashcardRating) => {
+      void (async () => {
+        try {
+          const lesson = await getLesson(deck.id);
+          if (!lesson?.flashcardData) return;
+          lesson.flashcardData = {
+            ...lesson.flashcardData,
+            ratings: { ...lesson.flashcardData.ratings, [lineIndex]: rating },
+          };
+          await saveLesson(lesson);
+          onDeckUpdated?.();
+        } catch {
+          /* ignore */
+        }
+      })();
+    },
+    [deck.id, onDeckUpdated]
+  );
+
+  const engine = useFlashcardEngine(lines, onComplete, { onRate: onPersistRate });
+
+  const flashAndRate = (key: string, rating: FlashcardRating) => {
+    setClickFlash(key);
+    window.setTimeout(() => engine.handleRating(rating), 0);
+    window.setTimeout(() => setClickFlash(null), 300);
+  };
+
+  const handleResetDeck = async () => {
+    try {
+      const lesson = await getLesson(deck.id);
+      if (!lesson) return;
+      const baseLines =
+        lesson.flashcardData?.lines && lesson.flashcardData.lines.length > 0
+          ? lesson.flashcardData.lines
+          : lines;
+      lesson.flashcardData = {
+        ratings: {},
+        currentIndex: 0,
+        isShuffled: false,
+        shuffledIndices: [],
+        lines: baseLines,
+      };
+      lesson.totalSentences = baseLines.length;
+      await saveLesson(lesson);
+      setLines([...baseLines]);
+      onDeckUpdated?.();
+    } catch {
+      setLoadError('Failed to reset deck.');
+    }
+  };
 
   const handleSaveEdit = async () => {
     const nextLines = editText.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
@@ -127,21 +180,22 @@ export function FlashcardViewer({ deck, onComplete, onDeckUpdated }: FlashcardVi
   }
 
   const doneMessage = !engine.hasCards && engine.totalCards > 0 ? 'All caught up!' : engine.currentCard;
+  const keyFlash = (k: string) => engine.flashedButton === k || clickFlash === k;
 
   return (
     <div className="flashcard-viewer-container">
       <div className="flashcard-header">
-        <div className="progress-wrapper">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${engine.progress}%` }} />
-          </div>
-          <span className="progress-text">
-            {engine.hasCards
-              ? `${engine.progress}% · Card ${engine.currentIndex + 1} / ${engine.totalCards}`
-              : `${engine.progress}% · Session complete`}
-          </span>
-        </div>
-        <div className="header-actions">
+        <div className="header-actions w-full flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-gray-500 tabular-nums shrink-0">{lines.length} cards</span>
+          <div className="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={handleResetDeck}
+            title="Reset deck progress"
+            className="flashcard-btn-ghost border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
+          >
+            Reset deck
+          </button>
           <button
             type="button"
             onClick={engine.toggleShuffle}
@@ -152,6 +206,7 @@ export function FlashcardViewer({ deck, onComplete, onDeckUpdated }: FlashcardVi
           <button type="button" className="flashcard-btn-ghost" onClick={() => setIsEditing(true)}>
             Edit
           </button>
+          </div>
         </div>
       </div>
 
@@ -163,42 +218,47 @@ export function FlashcardViewer({ deck, onComplete, onDeckUpdated }: FlashcardVi
         <div className="flashcard-controls">
           <button
             type="button"
-            className={`rate-btn btn-again ${engine.flashedButton === '1' ? 'flash-active' : ''}`}
-            onClick={() => engine.handleRating('again')}
+            className={`rate-btn btn-again ${keyFlash('1') ? 'flash-active' : ''}`}
+            onClick={() => flashAndRate('1', 'again')}
           >
             <span className="shortcut-hint">1</span>
+            <X className="w-4 h-4 shrink-0" strokeWidth={2.25} aria-hidden />
             Again
           </button>
           <button
             type="button"
-            className={`rate-btn btn-hard ${engine.flashedButton === '2' ? 'flash-active' : ''}`}
-            onClick={() => engine.handleRating('hard')}
+            className={`rate-btn btn-hard ${keyFlash('2') ? 'flash-active' : ''}`}
+            onClick={() => flashAndRate('2', 'hard')}
           >
             <span className="shortcut-hint">2</span>
+            <Meh className="w-4 h-4 shrink-0" strokeWidth={2} aria-hidden />
             Hard
           </button>
           <button
             type="button"
-            className={`rate-btn btn-good ${engine.flashedButton === '3' ? 'flash-active' : ''}`}
-            onClick={() => engine.handleRating('good')}
+            className={`rate-btn btn-good ${keyFlash('3') ? 'flash-active' : ''}`}
+            onClick={() => flashAndRate('3', 'good')}
           >
             <span className="shortcut-hint">3</span>
+            <Smile className="w-4 h-4 shrink-0" strokeWidth={2} aria-hidden />
             Good
           </button>
           <button
             type="button"
-            className={`rate-btn btn-easy ${engine.flashedButton === '4' ? 'flash-active' : ''}`}
-            onClick={() => engine.handleRating('easy')}
+            className={`rate-btn btn-easy ${keyFlash('4') ? 'flash-active' : ''}`}
+            onClick={() => flashAndRate('4', 'easy')}
           >
             <span className="shortcut-hint">4</span>
+            <Target className="w-4 h-4 shrink-0" strokeWidth={2} aria-hidden />
             Easy
           </button>
           <button
             type="button"
-            className={`rate-btn btn-done ${engine.flashedButton === '5' ? 'flash-active' : ''}`}
-            onClick={() => engine.handleRating('done')}
+            className={`rate-btn btn-done ${keyFlash('5') ? 'flash-active' : ''}`}
+            onClick={() => flashAndRate('5', 'done')}
           >
             <span className="shortcut-hint">5</span>
+            <CheckCircle2 className="w-4 h-4 shrink-0" strokeWidth={2} aria-hidden />
             Done
           </button>
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AppMode, LoopMode } from '@/types';
+import { LoopMode } from '@/types';
 import { PlaybackSeekBar } from './PlaybackSeekBar';
 import { PlayerControls } from './PlayerControls';
 
@@ -10,13 +10,11 @@ interface PlayerProps {
   duration: number;
   currentTime: number;
   playbackRate: number;
-  appMode: AppMode;
   loopMode: LoopMode;
   isGeneratingIPA: boolean;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSpeedChange: () => void;
-  onModeChange: (mode: AppMode) => void;
   onLoopModeChange: () => void;
 }
 
@@ -25,13 +23,11 @@ export function Player({
   duration,
   currentTime,
   playbackRate,
-  appMode,
   loopMode,
   isGeneratingIPA,
   onPlayPause,
   onSeek,
   onSpeedChange,
-  onModeChange,
   onLoopModeChange,
 }: PlayerProps) {
   return (
@@ -44,12 +40,10 @@ export function Player({
       <PlayerControls
         isPlaying={isPlaying}
         playbackRate={playbackRate}
-        appMode={appMode}
         loopMode={loopMode}
         isGeneratingIPA={isGeneratingIPA}
         onPlayPause={onPlayPause}
         onSpeedChange={onSpeedChange}
-        onModeChange={onModeChange}
         onLoopModeChange={onLoopModeChange}
       />
     </div>

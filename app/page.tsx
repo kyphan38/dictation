@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AUTH_USERNAME, AUTH_PASSWORD, STORAGE_AUTH_KEY } from '@/constants';
-import { getLetters } from '@/lib/utils';
+import { normalizeDictationTarget } from '@/lib/utils';
 import { clearLessonMedia } from '@/lib/db';
 import { AuthScreen } from '@/components/Auth';
 import { Sidebar } from '@/components/Sidebar';
@@ -43,6 +43,7 @@ export default function NodaApp() {
 
   const [headerItemMenuOpen, setHeaderItemMenuOpen] = useState(false);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
+  const [hideCaptions, setHideCaptions] = useState(false);
 
   const [selectedItem, setSelectedItem] = useState<{
     id: string;
@@ -71,10 +72,12 @@ export default function NodaApp() {
     isSidebarOpen, setIsSidebarOpen, lessonToDelete, setLessonToDelete,
     expandedSections, setExpandedSections,
     appModeRef, completedSentencesRef, transcript,
-    handleLoadLesson, handleNewLesson, handleRenameLesson, handleTrashLesson, handleDeletePermanently,
+    handleLoadLesson, handleNewLesson, handleRenameLesson, handleDeletePermanently,
     handleModeChange,
     loadLessonsList, fetchIPA
   } = useLessonLogic(audioFile, setAudioFile, setAudioURL, recognitionLang, setRecognitionLang);
+
+  const getTakenLessonNames = useCallback(() => lessonsList.map((l) => l.name), [lessonsList]);
 
   const { handleLessonCreated, handleDeckCreated } = useLessonCreateFlow(
     setSelectedItem,
@@ -82,7 +85,8 @@ export default function NodaApp() {
     handleModeChange,
     setUploadMode,
     setToast,
-    fetchIPA
+    fetchIPA,
+    getTakenLessonNames
   );
 
   const handleNewLessonWrapper = () => {
@@ -120,6 +124,10 @@ export default function NodaApp() {
     setHeaderItemMenuOpen(false);
   }, [selectedItem?.id]);
 
+  useEffect(() => {
+    setHideCaptions(false);
+  }, [selectedItem?.id]);
+
   useHeaderItemMenuClickOutside(
     headerItemMenuOpen,
     setHeaderItemMenuOpen,
@@ -148,15 +156,6 @@ export default function NodaApp() {
     setHeaderItemMenuOpen(false);
   };
 
-  const handleHeaderTrashCurrent = () => {
-    const id = selectedItem?.id;
-    if (!id) return;
-    setHeaderItemMenuOpen(false);
-    void handleTrashLesson(id).then(() => {
-      handleNewLessonWrapper();
-    });
-  };
-
   const activeSentenceRef = useRef<Sentence | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const lastScrolledIndexRef = useRef<number>(-1);
@@ -166,7 +165,7 @@ export default function NodaApp() {
     setShowCleanupModal,
     cleanupModalVariant,
     setCleanupModalVariant,
-  } = useDictationCompletionModal(selectedItem, isStarted, transcript.length, appMode, completedSentences);
+  } = useDictationCompletionModal(selectedItem, isStarted, transcript, appMode, completedSentences);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -180,6 +179,8 @@ export default function NodaApp() {
 
   useGlobalPlaybackShortcuts(
     selectedItem?.type,
+    appMode,
+    selectedItem?.type === 'lesson' ? () => setHideCaptions((v) => !v) : undefined,
     handleModeChange,
     togglePlayPause,
     toggleLoopMode,
@@ -205,7 +206,11 @@ export default function NodaApp() {
   useAutoScrollActiveSentence(currentTime, transcript, scrollContainerRef, lastScrolledIndexRef);
 
   const handleSkip = (sentence: Sentence) => {
-    setCompletedSentences((prev) => ({ ...prev, [sentence.id]: true }));
+    setCompletedSentences((prev) => {
+      const next = { ...prev, [sentence.id]: true };
+      completedSentencesRef.current = next;
+      return next;
+    });
     if (audioRef.current) {
       audioRef.current.currentTime = sentence.end + 0.05;
       audioRef.current.play().catch(() => {});
@@ -226,25 +231,38 @@ export default function NodaApp() {
   };
 
   const handleDictationChange = (sentence: Sentence, val: string) => {
-    setDictationInputs((prev) => ({ ...prev, [sentence.id]: val }));
+    const normalized = normalizeDictationTarget(val, { preserveTrailingSpace: true });
+    setDictationInputs((prev) => ({ ...prev, [sentence.id]: normalized }));
 
-    const targetL = getLetters(sentence.text);
-    const inputL = getLetters(val);
-
+    const targetNorm = normalizeDictationTarget(sentence.text);
     if (
-      targetL.length > 0 &&
-      targetL.length === inputL.length &&
-      targetL.every((c, i) => c.char.toLowerCase() === inputL[i].char.toLowerCase())
+      targetNorm.length > 0 &&
+      normalized.length === targetNorm.length &&
+      normalized === targetNorm
     ) {
-      setCompletedSentences((prev) => ({ ...prev, [sentence.id]: true }));
+      setCompletedSentences((prev) => {
+        const next = { ...prev, [sentence.id]: true };
+        completedSentencesRef.current = next;
+        return next;
+      });
 
       if (loopTimeoutRef.current) {
         clearTimeout(loopTimeoutRef.current);
         isLoopDelayingRef.current = false;
       }
 
+      const idx = transcript.findIndex((s) => s.id === sentence.id);
+      const nextSentence = idx >= 0 && idx < transcript.length - 1 ? transcript[idx + 1] : null;
+
       if (audioRef.current) {
-        audioRef.current.currentTime = sentence.end + 0.05;
+        if (nextSentence) {
+          audioRef.current.currentTime = nextSentence.start;
+          setCurrentTime(nextSentence.start);
+          lastScrolledIndexRef.current = -1;
+        } else {
+          audioRef.current.currentTime = sentence.end + 0.05;
+          setCurrentTime(sentence.end + 0.05);
+        }
         audioRef.current.play().catch(() => {});
       }
     }
@@ -253,27 +271,15 @@ export default function NodaApp() {
   const handleDictationKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, sentence: Sentence) => {
     if (e.key === 'Tab') {
       e.preventDefault();
-      const targetL = getLetters(sentence.text);
-      const currentInput = dictationInputs[sentence.id] || '';
-      const inputL = getLetters(currentInput);
-
-      let firstWrongIdx = -1;
-      for (let i = 0; i < targetL.length; i++) {
-        if (!inputL[i] || inputL[i].char.toLowerCase() !== targetL[i].char.toLowerCase()) {
-          firstWrongIdx = i;
-          break;
-        }
-      }
-
-      if (firstWrongIdx !== -1) {
-        const nextChar = targetL[firstWrongIdx].char;
-        let sliceEnd = currentInput.length;
-        if (inputL[firstWrongIdx]) {
-          sliceEnd = inputL[firstWrongIdx].index;
-        }
-        const newVal = currentInput.slice(0, sliceEnd) + nextChar;
-        handleDictationChange(sentence, newVal);
-      }
+      const t = normalizeDictationTarget(sentence.text);
+      const cur = normalizeDictationTarget(dictationInputs[sentence.id] || '', {
+        preserveTrailingSpace: true,
+      });
+      let i = 0;
+      while (i < cur.length && i < t.length && cur[i] === t[i]) i++;
+      if (i >= t.length) return;
+      const newVal = t.slice(0, i + 1);
+      handleDictationChange(sentence, newVal);
     } else if (e.key === 'Control') {
       e.preventDefault();
       if (loopTimeoutRef.current) {
@@ -285,6 +291,25 @@ export default function NodaApp() {
         audioRef.current.play().catch(() => {});
       }
     }
+  };
+
+  const handleDictationRetry = (sentence: Sentence) => {
+    setCompletedSentences((prev) => {
+      const next = { ...prev };
+      delete next[sentence.id];
+      return next;
+    });
+    setDictationInputs((prev) => {
+      const next = { ...prev };
+      delete next[sentence.id];
+      return next;
+    });
+  };
+
+  const handleResetDictationProgress = () => {
+    setDictationInputs({});
+    setCompletedSentences({});
+    completedSentencesRef.current = {};
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -344,14 +369,7 @@ export default function NodaApp() {
           onNewLesson={openNewLessonModal}
           onNewDeck={openNewDeckModal}
           onRenameLesson={handleRenameLesson}
-          onTrashLesson={(id) => {
-            if (selectedItem?.id === id && !lessonsList.find((l) => l.id === id)?.isTrashed) {
-              handleTrashLesson(id);
-              handleNewLessonWrapper();
-            } else {
-              setLessonToDelete(id);
-            }
-          }}
+          onDeleteLesson={(id) => setLessonToDelete(id)}
           onLogout={handleLogout}
           onToggleSection={(section, expanded) =>
             setExpandedSections((prev) => ({ ...prev, [section]: expanded }))
@@ -371,7 +389,11 @@ export default function NodaApp() {
             setHeaderItemMenuOpen={setHeaderItemMenuOpen}
             headerMenuRef={headerMenuRef}
             onRenameCurrent={handleHeaderRenameCurrent}
-            onTrashCurrent={handleHeaderTrashCurrent}
+            onDeleteCurrent={() => {
+              const id = selectedItem?.id;
+              if (id) setLessonToDelete(id);
+              setHeaderItemMenuOpen(false);
+            }}
           />
 
           <div className="flex-1 flex flex-col min-h-0">
@@ -417,7 +439,6 @@ export default function NodaApp() {
                   onPlayPause={togglePlayPause}
                   onSeek={handleSeek}
                   onSpeedChange={changeSpeed}
-                  onModeChange={handleModeChange}
                   onLoopModeChange={toggleLoopMode}
                   transcript={transcript}
                   dictationInputs={dictationInputs}
@@ -430,9 +451,13 @@ export default function NodaApp() {
                   onSentenceClick={handleSentenceClick}
                   onDictationChange={handleDictationChange}
                   onDictationKeyDown={handleDictationKeyDown}
+                  onDictationRetry={handleDictationRetry}
                   onToggleRecording={toggleRecording}
                   onSkip={handleSkip}
                   onSimulateSuccess={handleSimulateSuccess}
+                  onResetDictation={handleResetDictationProgress}
+                  hideCaptions={hideCaptions}
+                  onToggleHideCaptions={() => setHideCaptions((v) => !v)}
                 />
               </div>
             )}
@@ -455,7 +480,10 @@ export default function NodaApp() {
         <DeleteLessonModal
           lessonId={lessonToDelete}
           onCancel={() => setLessonToDelete(null)}
-          onConfirmDelete={(id) => handleDeletePermanently(id)}
+          onConfirmDelete={async (id) => {
+            await handleDeletePermanently(id);
+            if (selectedItem?.id === id) handleNewLessonWrapper();
+          }}
         />
       )}
 
@@ -483,6 +511,17 @@ export default function NodaApp() {
                   const d = prev.data as LessonItem;
                   return { ...prev, data: { ...d, hasAudio: false } };
                 });
+              }
+            : undefined
+        }
+        onDeleteDeck={
+          cleanupModalVariant === 'deck'
+            ? async () => {
+                const id = selectedItem?.id;
+                if (!id || selectedItem?.type !== 'deck') return;
+                setShowCleanupModal(false);
+                await handleDeletePermanently(id);
+                handleNewLessonWrapper();
               }
             : undefined
         }

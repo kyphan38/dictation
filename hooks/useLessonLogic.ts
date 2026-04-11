@@ -8,8 +8,14 @@ import {
   IPA_MAX_CONCURRENT,
   SAVE_PROGRESS_DELAY_MS,
 } from '@/constants';
-import { parseTranscript, getIPASystemInstruction, parseGeminiJsonArray } from '@/lib/utils';
-import { getAllLessons, getLesson, saveLesson, trashLesson, deleteLesson, updateLessonProgress } from '@/lib/db';
+import {
+  parseTranscript,
+  getIPASystemInstruction,
+  parseGeminiJsonArray,
+  uniquifyName,
+  flashcardDeckProgressPercent,
+} from '@/lib/utils';
+import { getAllLessons, getLesson, saveLesson, deleteLesson, updateLessonProgress } from '@/lib/db';
 
 /** `GenerateContentResponse.text` skips parts with `thought: true`; Gemini 3 may emit JSON only in those parts. */
 function joinAllCandidateTextParts(response: {
@@ -46,7 +52,6 @@ export function useLessonLogic(
     'audio-de': false,
     'flashcard-en': true,
     'flashcard-de': false,
-    'trash': true
   });
 
   const appModeRef = useRef<AppMode>(appMode);
@@ -70,11 +75,20 @@ export function useLessonLogic(
       dbLessons.sort((a, b) => b.lastAccessed - a.lastAccessed);
       setLessonsList(dbLessons.map(l => {
         const kind: 'audio' | 'flashcard' = l.type === 'flashcard' ? 'flashcard' : 'audio';
+        const audioProgress =
+          l.totalSentences > 0
+            ? Math.round(
+                (Object.values(l.completedSentences || {}).filter(Boolean).length / l.totalSentences) * 100
+              )
+            : 0;
         return {
           id: l.id,
           name: l.name,
           language: l.language,
-          progress: l.totalSentences > 0 ? Math.round((Object.keys(l.completedSentences || {}).length / l.totalSentences) * 100) : 0,
+          progress:
+            kind === 'flashcard'
+              ? flashcardDeckProgressPercent(l.flashcardData, l.totalSentences ?? 0)
+              : audioProgress,
           totalSentences: l.totalSentences ?? 0,
           kind,
           hasIpa: Object.keys(l.ipaData || {}).length > 0,
@@ -164,15 +178,6 @@ export function useLessonLogic(
       }
       loadLessonsList();
     }
-  };
-
-  const handleTrashLesson = async (id: string) => {
-    await trashLesson(id);
-    if (currentLessonId === id) {
-      handleNewLesson();
-    }
-    setLessonToDelete(null);
-    loadLessonsList();
   };
 
   const handleDeletePermanently = async (id: string) => {
@@ -354,9 +359,13 @@ export function useLessonLogic(
 
   const handleFlashcardUpload = async (text: string, name: string) => {
     if (!text.trim()) return;
-    
+
+    const all = await getAllLessons();
+    const taken = all.map((l) => l.name);
+    const base = name.trim() || text.split('\n')[0].substring(0, 30) || 'Untitled deck';
+    const finalName = uniquifyName(base, taken);
+
     const lessonId = Date.now().toString();
-    const finalName = name.trim() || text.split('\n')[0].substring(0, 30) || 'Untitled Deck';
     
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     
@@ -419,7 +428,6 @@ export function useLessonLogic(
     handleLoadLesson,
     handleNewLesson,
     handleRenameLesson,
-    handleTrashLesson,
     handleDeletePermanently,
     fetchIPA,
     handleStartLearning,

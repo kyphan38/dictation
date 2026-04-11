@@ -17,6 +17,61 @@ export const getLetters = (text: string) => {
   return letters;
 };
 
+/** Ensure `base` does not collide with existing names (case-insensitive); appends " (1)", " (2)", … */
+export function uniquifyName(base: string, existingNames: string[]): string {
+  const t = base.trim();
+  if (!t) return t;
+  const taken = new Set(existingNames.map((n) => n.trim().toLowerCase()).filter(Boolean));
+  if (!taken.has(t.toLowerCase())) return t;
+  let n = 1;
+  let candidate = `${t} (${n})`;
+  while (taken.has(candidate.toLowerCase())) {
+    n += 1;
+    candidate = `${t} (${n})`;
+  }
+  return candidate;
+}
+
+/** Lowercase, strip punctuation, collapse whitespace to single spaces (dictation target / input). */
+export function normalizeDictationTarget(
+  text: string,
+  options?: { preserveTrailingSpace?: boolean }
+): string {
+  const lower = text.toLowerCase();
+  let out = '';
+  let lastWasSpace = false;
+  for (const c of lower) {
+    if (/\s/u.test(c)) {
+      if (out.length > 0) lastWasSpace = true;
+    } else if (/[\p{L}\p{N}]/u.test(c)) {
+      if (lastWasSpace) {
+        out += ' ';
+        lastWasSpace = false;
+      }
+      out += c;
+    }
+  }
+  if (options?.preserveTrailingSpace && /\s$/u.test(lower) && out.length > 0 && !out.endsWith(' ')) {
+    out += ' ';
+  }
+  return out;
+}
+
+/** Sidebar % for flashcard decks: cards last rated Done / total lines. */
+export function flashcardDeckProgressPercent(
+  flashcardData: { lines?: string[]; ratings?: Record<number, string> } | undefined,
+  totalSentences: number
+): number {
+  const linesLen =
+    flashcardData?.lines && flashcardData.lines.length > 0
+      ? flashcardData.lines.length
+      : totalSentences;
+  if (linesLen <= 0) return 0;
+  const ratings = flashcardData?.ratings ?? {};
+  const done = Object.values(ratings).filter((r) => r === 'done').length;
+  return Math.round(Math.min(100, (done / linesLen) * 100));
+}
+
 export const formatTime = (time: number) => {
   if (isNaN(time)) return "0:00";
   const minutes = Math.floor(time / 60);

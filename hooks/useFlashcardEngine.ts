@@ -4,67 +4,84 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 export type FlashcardRating = 'again' | 'hard' | 'good' | 'easy' | 'done';
 
-function shuffleArray<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
+function shuffleIndices(n: number): number[] {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
 }
 
-export function useFlashcardEngine(initialLines: string[], onComplete: () => void) {
-  const [cards, setCards] = useState<string[]>([]);
-  const [originalTotal, setOriginalTotal] = useState(0);
+export function useFlashcardEngine(
+  initialLines: string[],
+  onComplete: () => void,
+  options?: { onRate?: (lineIndex: number, rating: FlashcardRating) => void }
+) {
+  const [lines, setLines] = useState<string[]>([]);
+  const [order, setOrder] = useState<number[]>([]);
   const [isShuffle, setIsShuffle] = useState(false);
   const [flashedButton, setFlashedButton] = useState<string | null>(null);
 
-  const cardsRef = useRef<string[]>([]);
+  const orderRef = useRef<number[]>([]);
+  const linesRef = useRef<string[]>([]);
   const onCompleteRef = useRef(onComplete);
+  const onRateRef = useRef(options?.onRate);
   const completeFiredRef = useRef(false);
 
   onCompleteRef.current = onComplete;
+  onRateRef.current = options?.onRate;
 
   useEffect(() => {
-    cardsRef.current = cards;
-  }, [cards]);
+    orderRef.current = order;
+  }, [order]);
+
+  useEffect(() => {
+    linesRef.current = lines;
+  }, [lines]);
 
   useEffect(() => {
     completeFiredRef.current = false;
-    const lines = initialLines.map((l) => l.trim()).filter((l) => l.length > 0);
-    const ordered = isShuffle ? shuffleArray(lines) : [...lines];
-    setCards(ordered);
-    setOriginalTotal(ordered.length);
+    const cleaned = initialLines.map((l) => l.trim()).filter((l) => l.length > 0);
+    setLines(cleaned);
+    const n = cleaned.length;
+    const ord = n === 0 ? [] : isShuffle ? shuffleIndices(n) : Array.from({ length: n }, (_, i) => i);
+    setOrder(ord);
   }, [initialLines, isShuffle]);
 
+  const originalTotal = lines.length;
+  const cardsRemaining = order.length;
   const progress =
-    originalTotal === 0 ? 0 : Math.round(((originalTotal - cards.length) / originalTotal) * 100);
-
-  const currentIndex = originalTotal - cards.length;
+    originalTotal === 0 ? 0 : Math.round(((originalTotal - cardsRemaining) / originalTotal) * 100);
+  const currentIndex = originalTotal - cardsRemaining;
+  const currentCard = order.length > 0 ? lines[order[0]] ?? '' : '';
+  const currentLineOneBased = order.length > 0 ? order[0] + 1 : 0;
 
   const handleRating = useCallback((rating: FlashcardRating) => {
-    setCards((prev) => {
+    setOrder((prev) => {
       if (prev.length === 0) return prev;
-      const newArray = [...prev];
-      const currentCard = newArray.shift();
-      if (!currentCard) return prev;
-
+      const idx = prev[0];
+      onRateRef.current?.(idx, rating);
+      const rest = prev.slice(1);
       if (rating === 'again' || rating === 'hard') {
-        newArray.push(currentCard);
-      } else if (rating === 'good' || rating === 'easy') {
-        const insertIndex = Math.min(3, newArray.length);
-        newArray.splice(insertIndex, 0, currentCard);
+        return [...rest, idx];
       }
-      return newArray;
+      if (rating === 'good' || rating === 'easy') {
+        const insertAt = Math.min(3, rest.length);
+        const next = [...rest];
+        next.splice(insertAt, 0, idx);
+        return next;
+      }
+      return rest;
     });
   }, []);
 
   useEffect(() => {
-    if (originalTotal > 0 && cards.length === 0 && !completeFiredRef.current) {
+    if (originalTotal > 0 && order.length === 0 && !completeFiredRef.current) {
       completeFiredRef.current = true;
       onCompleteRef.current();
     }
-  }, [cards.length, originalTotal]);
+  }, [order.length, originalTotal]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -81,11 +98,13 @@ export function useFlashcardEngine(initialLines: string[], onComplete: () => voi
       };
       const rating = keyMap[e.key];
       if (!rating) return;
-      if (cardsRef.current.length === 0) return;
+      if (orderRef.current.length === 0) return;
       e.preventDefault();
       setFlashedButton(e.key);
-      handleRating(rating);
-      window.setTimeout(() => setFlashedButton(null), 150);
+      window.setTimeout(() => {
+        handleRating(rating);
+      }, 0);
+      window.setTimeout(() => setFlashedButton(null), 300);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -96,15 +115,29 @@ export function useFlashcardEngine(initialLines: string[], onComplete: () => voi
     setIsShuffle((s) => !s);
   }, []);
 
+  const jumpToLineOneBased = useCallback((oneBased: number) => {
+    const lineIndex = oneBased - 1;
+    setOrder((prev) => {
+      const L = linesRef.current.length;
+      if (lineIndex < 0 || lineIndex >= L) return prev;
+      const pos = prev.indexOf(lineIndex);
+      if (pos === -1) return prev;
+      return [...prev.slice(pos), ...prev.slice(0, pos)];
+    });
+  }, []);
+
   return {
-    currentCard: cards[0] ?? '',
+    currentCard,
     progress,
     currentIndex,
     totalCards: originalTotal,
+    queueLength: order.length,
+    currentLineOneBased,
     isShuffle,
     toggleShuffle,
     handleRating,
     flashedButton,
-    hasCards: cards.length > 0,
+    hasCards: order.length > 0,
+    jumpToLineOneBased,
   };
 }
