@@ -20,7 +20,7 @@ export function useLessonLogic(
   const [isGeneratingIPA, setIsGeneratingIPA] = useState<boolean>(false);
   const [ipaData, setIpaData] = useState<Record<number, string>>({});
   const ipaDataRef = useRef<Record<number, string>>({});
-  const [shadowingGenerateIpa, setShadowingGenerateIpa] = useState(false);
+  const currentLessonIdRef = useRef<string | null>(null);
   const [lessonsList, setLessonsList] = useState<any[]>([]);
   const [isListLoading, setIsListLoading] = useState(true);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
@@ -94,6 +94,7 @@ export function useLessonLogic(
     try {
       const lesson = await getLesson(id);
       if (lesson) {
+        currentLessonIdRef.current = lesson.id;
         setCurrentLessonId(lesson.id);
         setLessonName(lesson.name);
         setRecognitionLang(lesson.language);
@@ -125,6 +126,7 @@ export function useLessonLogic(
   };
 
   const handleNewLesson = () => {
+    currentLessonIdRef.current = null;
     setCurrentLessonId(null);
     setLessonName('');
     setAudioFile(null);
@@ -175,41 +177,55 @@ export function useLessonLogic(
     setIsGeneratingIPA(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
-      
-      const sentencesToTranslate = sentencesToUse.map(s => ({ id: s.id, text: s.text }));
-      
+
+      const sentencesToTranslate = sentencesToUse.map((s) => ({ id: s.id, text: s.text }));
+
       const response = await ai.models.generateContent({
         model: GEMINI_MODEL,
         contents: JSON.stringify(sentencesToTranslate),
         config: {
           systemInstruction: getIPASystemInstruction(lang),
-          responseMimeType: "application/json",
+          responseMimeType: 'application/json',
           responseSchema: {
             type: Type.ARRAY,
             items: {
               type: Type.OBJECT,
               properties: {
                 id: { type: Type.NUMBER },
-                ipa: { type: Type.STRING }
+                ipa: { type: Type.STRING },
               },
-              required: ["id", "ipa"]
-            }
-          }
-        }
+              required: ['id', 'ipa'],
+            },
+          },
+        },
       });
 
-      const jsonStr = response.text?.trim() || "[]";
-      const parsed = JSON.parse(jsonStr);
-      
+      let jsonStr = response.text?.trim() || '[]';
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+      }
+      const parsed = JSON.parse(jsonStr) as { id?: number; ipa?: string }[];
+      if (!Array.isArray(parsed)) {
+        throw new Error('IPA response was not a JSON array');
+      }
+
       const newIpaData: Record<number, string> = {};
-      parsed.forEach((item: any) => {
-        newIpaData[item.id] = item.ipa;
+      sentencesToUse.forEach((s, i) => {
+        const row = parsed.find((p) => Number(p?.id) === s.id) ?? parsed[i];
+        const ipa = row?.ipa != null ? String(row.ipa).trim() : '';
+        if (ipa) newIpaData[s.id] = ipa;
       });
-      
+
       ipaDataRef.current = newIpaData;
       setIpaData(newIpaData);
+
+      const persistId = currentLessonIdRef.current;
+      if (persistId && Object.keys(newIpaData).length > 0) {
+        await updateLessonProgress(persistId, completedSentencesRef.current, newIpaData);
+        loadLessonsList();
+      }
     } catch (error) {
-      console.error("Failed to generate IPA", error);
+      console.error('Failed to generate IPA', error);
     } finally {
       setIsGeneratingIPA(false);
     }
@@ -239,6 +255,7 @@ export function useLessonLogic(
       };
       
       await saveLesson(newLesson);
+      currentLessonIdRef.current = lessonId;
       setCurrentLessonId(lessonId);
       setLessonName(name);
       loadLessonsList();
@@ -253,18 +270,11 @@ export function useLessonLogic(
       }
     }
     
-    if (appMode === 'shadowing' && shadowingGenerateIpa) {
-      await fetchIPA(sentences);
-    }
-    
     setIsStarted(true);
   };
 
   const handleModeChange = async (mode: AppMode) => {
     setAppMode(mode);
-    if (mode === 'shadowing' && shadowingGenerateIpa) {
-      await fetchIPA();
-    }
   };
 
   const handleTranscriptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -304,6 +314,7 @@ export function useLessonLogic(
     };
     
     await saveLesson(newLesson);
+    currentLessonIdRef.current = lessonId;
     setCurrentLessonId(lessonId);
     setLessonName(finalName);
     setAppMode('flashcard');
@@ -324,8 +335,6 @@ export function useLessonLogic(
     setIsStarted,
     isGeneratingIPA,
     ipaData,
-    shadowingGenerateIpa,
-    setShadowingGenerateIpa,
     lessonsList,
     isListLoading,
     currentLessonId,

@@ -68,7 +68,7 @@ export default function NodaApp() {
   const {
     appMode,
     dictationInputs, setDictationInputs, completedSentences, setCompletedSentences,
-    isStarted, isGeneratingIPA, ipaData, shadowingGenerateIpa, setShadowingGenerateIpa,
+    isStarted, isGeneratingIPA, ipaData,
     lessonsList, isListLoading,
     isSidebarOpen, setIsSidebarOpen, lessonToDelete, setLessonToDelete,
     expandedSections, setExpandedSections,
@@ -372,11 +372,6 @@ export default function NodaApp() {
             onMobileBack={handleNewLessonWrapper}
             appMode={appMode}
             onModeChange={handleModeChange}
-            isGeneratingIPA={isGeneratingIPA}
-            transcript={transcript}
-            shadowingGenerateIpa={shadowingGenerateIpa}
-            setShadowingGenerateIpa={setShadowingGenerateIpa}
-            fetchIPA={fetchIPA}
             headerItemMenuOpen={headerItemMenuOpen}
             setHeaderItemMenuOpen={setHeaderItemMenuOpen}
             headerMenuRefMobile={headerMenuRefMobile}

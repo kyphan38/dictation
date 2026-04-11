@@ -2,7 +2,7 @@
 
 import React, { type RefObject } from 'react';
 import { PanelLeft, Trash2, Headphones, PenTool, Mic, MoreVertical, Edit2 } from 'lucide-react';
-import type { AppMode, LessonItem, DeckItem, Sentence } from '@/types';
+import type { AppMode, LessonItem, DeckItem } from '@/types';
 
 export type HeaderSelectedItem = {
   id: string;
@@ -17,11 +17,6 @@ export interface AppHeaderProps {
   onMobileBack: () => void;
   appMode: AppMode;
   onModeChange: (mode: AppMode) => void | Promise<void>;
-  isGeneratingIPA: boolean;
-  transcript: Sentence[];
-  shadowingGenerateIpa: boolean;
-  setShadowingGenerateIpa: (v: boolean) => void;
-  fetchIPA: () => void | Promise<void>;
   headerItemMenuOpen: boolean;
   setHeaderItemMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   headerMenuRefMobile: RefObject<HTMLDivElement | null>;
@@ -37,11 +32,6 @@ export function AppHeader({
   onMobileBack,
   appMode,
   onModeChange,
-  isGeneratingIPA,
-  transcript,
-  shadowingGenerateIpa,
-  setShadowingGenerateIpa,
-  fetchIPA,
   headerItemMenuOpen,
   setHeaderItemMenuOpen,
   headerMenuRefMobile,
@@ -151,63 +141,6 @@ export function AppHeader({
               <span className="mode-tab-label">Shadowing</span>
             </button>
           </div>
-          {appMode === 'shadowing' && (
-            <div className="shadowing-ipa-panel w-full max-w-xl mx-auto px-2 sm:px-3 pb-2 pt-2 border-t border-gray-800/80 transition-opacity duration-200">
-              {isGeneratingIPA && (
-                <div
-                  className="flex items-center gap-2 text-xs text-emerald-400/95 mb-2 px-1"
-                  role="status"
-                  aria-live="polite"
-                >
-                  <span
-                    className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin"
-                    aria-hidden
-                  />
-                  Generating pronunciation…
-                </div>
-              )}
-              <label
-                className={`flex items-start gap-3 rounded-lg p-2 -mx-1 transition-colors ${
-                  transcript.length === 0 || isGeneratingIPA
-                    ? 'cursor-not-allowed opacity-50'
-                    : 'cursor-pointer hover:bg-gray-900/40'
-                }`}
-              >
-                <span className="relative mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                  <input
-                    type="checkbox"
-                    className="peer sr-only"
-                    checked={shadowingGenerateIpa}
-                    disabled={transcript.length === 0 || isGeneratingIPA}
-                    onChange={(e) => {
-                      const on = e.target.checked;
-                      setShadowingGenerateIpa(on);
-                      if (on) void fetchIPA();
-                    }}
-                    aria-describedby="shadowing-ipa-hint"
-                  />
-                  <span
-                    className="flex h-4 w-4 items-center justify-center rounded border border-gray-600 bg-gray-900 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/50 peer-checked:border-emerald-500 peer-checked:bg-emerald-600 peer-disabled:opacity-50"
-                    aria-hidden
-                  >
-                    {shadowingGenerateIpa && (
-                      <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 12 10" fill="none" aria-hidden>
-                        <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </span>
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-gray-200">Auto-generate IPA using AI</span>
-                  <span id="shadowing-ipa-hint" className="mt-1 block text-xs text-gray-500 leading-relaxed">
-                    {transcript.length === 0
-                      ? 'Add a transcript (.srt) to the lesson to generate pronunciation hints.'
-                      : 'Uses AI to add IPA under each line while you practice shadowing.'}
-                  </span>
-                </span>
-              </label>
-            </div>
-          )}
         </div>
       )}
 

@@ -32,6 +32,10 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
   const [generateIpa, setGenerateIpa] = useState(false);
 
   useEffect(() => {
+    if (!transcriptFile) setGenerateIpa(false);
+  }, [transcriptFile]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -162,16 +166,21 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
               />
             </div>
 
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg p-2 -mx-1 hover:bg-gray-900/40 transition-colors">
+            <label
+              className={`mt-4 flex items-start gap-3 rounded-lg p-2 -mx-1 transition-colors ${
+                transcriptFile ? 'cursor-pointer hover:bg-gray-900/40' : 'cursor-not-allowed opacity-50'
+              }`}
+            >
               <span className="relative mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
                 <input
                   type="checkbox"
                   checked={generateIpa}
+                  disabled={!transcriptFile}
                   onChange={(e) => setGenerateIpa(e.target.checked)}
                   className="peer sr-only"
                 />
                 <span
-                  className="flex h-4 w-4 items-center justify-center rounded border border-gray-600 bg-gray-900 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/50 peer-checked:border-emerald-500 peer-checked:bg-emerald-600"
+                  className="flex h-4 w-4 items-center justify-center rounded border border-gray-600 bg-gray-900 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/50 peer-checked:border-emerald-500 peer-checked:bg-emerald-600 peer-disabled:opacity-50"
                   aria-hidden
                 >
                   {generateIpa && (
@@ -184,7 +193,9 @@ export function NewLessonModal({ onClose, onSubmit }: NewLessonModalProps) {
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium text-gray-200">Auto-generate IPA using AI</span>
                 <span className="mt-1 block text-xs text-gray-500 leading-relaxed">
-                  Adds IPA under each line in Shadowing mode. Requires a transcript (.srt). Runs after you create the lesson.
+                  {transcriptFile
+                    ? 'Adds IPA under each line in Shadowing. Runs once after you create the lesson (Gemini).'
+                    : 'Add a transcript (.srt) above to enable this option.'}
                 </span>
               </span>
             </label>

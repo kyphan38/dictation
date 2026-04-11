@@ -100,5 +100,5 @@ export const isGermanForIPA = (lang: string) =>
 
 export const getIPASystemInstruction = (recognitionLang: string) => {
   const label = isGermanForIPA(recognitionLang) ? 'German' : 'English';
-  return `You are an IPA converter. Convert the user's text into ${label} IPA. Output ONLY raw JSON. Do not add any greetings, explanations, or formatting.`;
+  return `You are an IPA converter. The user message is a JSON array of objects with "id" (number) and "text" (string). For each object, output ${label} IPA for "text" only. Return a JSON array of the same length, same order, with objects {"id": <same id as input>, "ipa": "<IPA string without surrounding slashes>"}. Use every input id exactly once. Output ONLY that JSON array, no markdown or prose.`;
 };
