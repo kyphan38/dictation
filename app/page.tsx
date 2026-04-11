@@ -1,117 +1,70 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Upload, FileText, Music, Play, Trash2, PanelLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
-import { initDB, saveLesson, getLesson, getAllLessons, deleteLesson, updateLessonProgress } from '@/lib/db';
-import { Sentence, LoopMode, AppMode, LessonSummary, ExpandedSections } from '@/types';
-import {
-  AUTH_USERNAME,
-  AUTH_PASSWORD,
-  DEFAULT_RECOGNITION_LANG,
-  DEFAULT_LOOP_MODE,
-  DEFAULT_APP_MODE,
-  LOOP_DELAY_MS,
-  SAVE_PROGRESS_DELAY_MS,
-  GEMINI_MODEL,
-  STORAGE_AUTH_KEY,
-  PLAYBACK_SPEEDS,
-  LEARNING_MODES,
-} from '@/constants';
-import { getLetters, formatTime, parseTranscript, compareSentences, getNextPlaybackSpeed, getIPASystemInstruction } from '@/lib/utils';
+import React, { useState, useRef, useEffect } from 'react';
+import { PanelLeft, Trash2, Plus } from 'lucide-react';
+import { AUTH_USERNAME, AUTH_PASSWORD, STORAGE_AUTH_KEY } from '@/constants';
+import { getLetters } from '@/lib/utils';
 import { AuthScreen } from '@/components/Auth';
 import { Sidebar } from '@/components/Sidebar';
+import { SidebarSection } from '@/components/SidebarSection';
+import { TrashSection } from '@/components/TrashSection';
 import { Player } from '@/components/Player';
 import { Transcript } from '@/components/Transcript';
+import { UploadPanel } from '@/components/UploadPanel';
+import { useAudioPlayer } from '@/hooks/useAudioPlayer';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { useLessonLogic } from '@/hooks/useLessonLogic';
+import { Sentence, AppMode, AppTab } from '@/types';
 
 export default function NodaApp() {
   // Authentication State
+  const [isMounted, setIsMounted] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioURL, setAudioURL] = useState<string | null>(null);
-  const [transcriptText, setTranscriptText] = useState<string>('');
-  
-  const [duration, setDuration] = useState<number>(0);
-  const [currentTime, setCurrentTime] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [playbackRate, setPlaybackRate] = useState<number>(1.0);
-  
-  const [loopMode, setLoopMode] = useState<LoopMode>(DEFAULT_LOOP_MODE);
-  
-  const [appMode, setAppMode] = useState<AppMode>(DEFAULT_APP_MODE);
-  
-  const [dictationInputs, setDictationInputs] = useState<Record<number, string>>({});
-  const [completedSentences, setCompletedSentences] = useState<Record<number, boolean>>({});
-  
-  const [isRecording, setIsRecording] = useState<number | null>(null);
-  const [recognitionLang, setRecognitionLang] = useState<string>(DEFAULT_RECOGNITION_LANG);
-  const [spokenResults, setSpokenResults] = useState<Record<number, { text: string, score: number, diff: {word: string, status: string}[] }>>({});
-  const [recognitionErrors, setRecognitionErrors] = useState<Record<number, string>>({});
-  
-  const [isStarted, setIsStarted] = useState<boolean>(false);
-  const [isGeneratingIPA, setIsGeneratingIPA] = useState<boolean>(false);
+  // Mobile Tab State
+  const [activeTab, setActiveTab] = useState<AppTab>('Lessons');
 
-  const [flashcardText, setFlashcardText] = useState<string>('');
-  const [flashcardData, setFlashcardData] = useState<any>(null);
-  const [isFlashcardShuffled, setIsFlashcardShuffled] = useState(false);
-  const [showCleanupModal, setShowCleanupModal] = useState(false);
-  const [uploadTab, setUploadTab] = useState<'audio' | 'flashcard'>('audio');
-  const [editingFlashcard, setEditingFlashcard] = useState(false);
+  const {
+    audioFile, setAudioFile, audioURL, setAudioURL,
+    duration, setDuration, currentTime, setCurrentTime,
+    isPlaying, setIsPlaying, playbackRate, loopMode, setLoopMode,
+    audioRef, loopTimeoutRef, isLoopDelayingRef, loopModeRef,
+    handleAudioUpload, togglePlayPause, handleSeek, changeSpeed, toggleLoopMode
+  } = useAudioPlayer();
 
-  const [ipaData, setIpaData] = useState<Record<number, string>>({});
+  const {
+    isRecording, recognitionLang, setRecognitionLang,
+    spokenResults, recognitionErrors, toggleRecording, handleSimulateSuccess
+  } = useSpeechRecognition();
 
-  const [lessonsList, setLessonsList] = useState<any[]>([]);
-  const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
-  const [lessonName, setLessonName] = useState<string>('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
-  const [lessonToDelete, setLessonToDelete] = useState<string | null>(null);
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  
-  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
-    'audio-en': true,
-    'audio-de': false,
-    'flashcard-en': true,
-    'flashcard-de': false,
-    'trash': true
-  });
+  const {
+    transcriptText, setTranscriptText, appMode, setAppMode,
+    dictationInputs, setDictationInputs, completedSentences, setCompletedSentences,
+    isStarted, isGeneratingIPA, ipaData, lessonsList,
+    currentLessonId, lessonName, setLessonName,
+    isSidebarOpen, setIsSidebarOpen, lessonToDelete, setLessonToDelete,
+    expandedSections, setExpandedSections,
+    appModeRef, completedSentencesRef, transcript,
+    handleLoadLesson, handleNewLesson, handleTrashLesson, handleDeletePermanently,
+    handleStartLearning, handleModeChange, handleTranscriptUpload, handleFlashcardUpload
+  } = useLessonLogic(audioFile, setAudioFile, setAudioURL, recognitionLang, setRecognitionLang);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeSentenceRef = useRef<Sentence | null>(null);
-  const loopModeRef = useRef<LoopMode>(loopMode);
-  const appModeRef = useRef<AppMode>(appMode);
-  const completedSentencesRef = useRef<Record<number, boolean>>(completedSentences);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const lastScrolledIndexRef = useRef<number>(-1);
-  const isLoopDelayingRef = useRef<boolean>(false);
-  const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const recognitionRef = useRef<any>(null);
 
-  // Sync ref with state for the animation frame
   useEffect(() => {
-    // Check auth on mount
-    const auth = localStorage.getItem(STORAGE_AUTH_KEY);
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-    }
-    setIsAuthChecking(false);
+    const timer = setTimeout(() => {
+      setIsMounted(true);
+      if (localStorage.getItem(STORAGE_AUTH_KEY) === 'true') {
+        setIsAuthenticated(true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    loopModeRef.current = loopMode;
-  }, [loopMode]);
-
-  useEffect(() => {
-    appModeRef.current = appMode;
-  }, [appMode]);
-
-  useEffect(() => {
-    completedSentencesRef.current = completedSentences;
-  }, [completedSentences]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -123,16 +76,10 @@ export default function NodaApp() {
 
       if (e.code === 'Space') {
         e.preventDefault();
-        if (audioRef.current) {
-          if (audioRef.current.paused) {
-            audioRef.current.play().catch(() => {});
-          } else {
-            audioRef.current.pause();
-          }
-        }
+        togglePlayPause();
       } else if (e.code === 'KeyL' || e.code === 'KeyR') {
         e.preventDefault();
-        setLoopMode(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none');
+        toggleLoopMode();
       } else if (e.key === 'Control') {
         e.preventDefault();
         if (loopTimeoutRef.current) {
@@ -148,312 +95,13 @@ export default function NodaApp() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
-
-
-
-  const toggleRecording = (sentence: Sentence) => {
-    if (isRecording === sentence.id) {
-      recognitionRef.current?.stop();
-      setIsRecording(null);
-      return;
-    }
-
-    if (isRecording !== null) {
-      recognitionRef.current?.stop();
-    }
-
-    setRecognitionErrors(prev => {
-      const next = { ...prev };
-      delete next[sentence.id];
-      return next;
-    });
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setRecognitionErrors(prev => ({ ...prev, [sentence.id]: "Trình duyệt của bạn không hỗ trợ Web Speech API. Vui lòng sử dụng Chrome hoặc Edge." }));
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = recognitionLang;
-    recognition.interimResults = false; // Tắt kết quả tạm thời
-    recognition.continuous = true; // Giữ mic mở cho đến khi user chủ động tắt
-    recognition.maxAlternatives = 1;
-
-    let finalTranscript = '';
-
-    recognition.onstart = () => setIsRecording(sentence.id);
-    
-    recognition.onresult = (event: any) => {
-      let transcript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript + ' ';
-      }
-      finalTranscript = transcript.trim();
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-      let errMsg = `Lỗi nhận diện (${event.error}).`;
-      if (event.error === 'network') {
-        errMsg = "Lỗi mạng (Network Error): Trình duyệt không thể kết nối đến dịch vụ nhận diện của Google. Hãy thử mở app ở Tab mới (Open in new tab) hoặc tắt chế độ ẩn danh.";
-      } else if (event.error === 'not-allowed') {
-        errMsg = "Lỗi quyền: Vui lòng cho phép sử dụng Microphone trên trình duyệt.";
-      }
-      setRecognitionErrors(prev => ({ ...prev, [sentence.id]: errMsg }));
-      setIsRecording(null);
-    };
-
-    recognition.onend = () => {
-      if (finalTranscript) {
-        const result = compareSentences(sentence.text, finalTranscript);
-        setSpokenResults(prev => ({ ...prev, [sentence.id]: result }));
-      }
-      setIsRecording(null);
-    };
-
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-    } catch (err) {
-      console.error("Failed to start recognition", err);
-      setIsRecording(null);
-    }
-  };
+  }, [togglePlayPause, toggleLoopMode, loopTimeoutRef, isLoopDelayingRef, audioRef]);
 
   const handleSkip = (sentence: Sentence) => {
     setCompletedSentences(prev => ({ ...prev, [sentence.id]: true }));
     if (audioRef.current) {
       audioRef.current.currentTime = sentence.end + 0.05;
       audioRef.current.play().catch(() => {});
-    }
-  };
-
-  const handleSimulateSuccess = (sentence: Sentence) => {
-    const result = { score: 100, diff: [{word: "Simulated", status: "correct"}], text: "Simulated success" };
-    setSpokenResults(prev => ({ ...prev, [sentence.id]: result }));
-    setRecognitionErrors(prev => { const next = {...prev}; delete next[sentence.id]; return next; });
-  };
-
-  // Handle Audio Upload
-  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setAudioFile(file);
-      setAudioURL(url);
-    }
-  };
-
-  // Handle Transcript Upload
-  const handleTranscriptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const text = await file.text();
-      setTranscriptText(text);
-    }
-  };
-
-
-
-  const transcript = useMemo(() => parseTranscript(transcriptText), [transcriptText]);
-
-  const loadLessonsList = async () => {
-    try {
-      const dbLessons = await getAllLessons();
-      dbLessons.sort((a, b) => b.lastAccessed - a.lastAccessed);
-      setLessonsList(dbLessons.map(l => ({
-        id: l.id,
-        name: l.name,
-        language: l.language,
-        progress: l.totalSentences > 0 ? Math.round((Object.keys(l.completedSentences || {}).length / l.totalSentences) * 100) : 0,
-        hasIpa: Object.keys(l.ipaData || {}).length > 0,
-        isTrashed: !!l.isTrashed,
-        hasAudio: !!l.audioFile
-      })));
-    } catch (e) {
-      console.error("Failed to load lessons", e);
-    }
-  };
-
-  useEffect(() => {
-    loadLessonsList();
-  }, []);
-
-  useEffect(() => {
-    if (currentLessonId && isStarted) {
-      const saveProgress = setTimeout(() => {
-        updateLessonProgress(currentLessonId, completedSentences, ipaData).then(() => {
-          loadLessonsList();
-        });
-      }, SAVE_PROGRESS_DELAY_MS);
-      return () => clearTimeout(saveProgress);
-    }
-  }, [completedSentences, ipaData, currentLessonId, isStarted]);
-
-  const handleLoadLesson = async (id: string) => {
-    try {
-      const lesson = await getLesson(id);
-      if (lesson) {
-        if (audioURL) URL.revokeObjectURL(audioURL);
-        
-        setCurrentLessonId(lesson.id);
-        setLessonName(lesson.name);
-        setRecognitionLang(lesson.language);
-        
-        if (lesson.audioFile) {
-          setAudioFile(lesson.audioFile);
-          setAudioURL(URL.createObjectURL(lesson.audioFile));
-        } else {
-          setAudioFile(null);
-          setAudioURL(null);
-        }
-        
-        setTranscriptText(lesson.transcriptText);
-        setIpaData(lesson.ipaData || {});
-        setCompletedSentences(lesson.completedSentences || {});
-        setIsStarted(!!lesson.audioFile); // Only start if we have audio
-        setAppMode('normal');
-        
-        lesson.lastAccessed = Date.now();
-        await saveLesson(lesson);
-        loadLessonsList();
-        if (window.innerWidth < 768) setIsSidebarOpen(false);
-      }
-    } catch (e) {
-      console.error("Failed to load lesson", e);
-    }
-  };
-
-  const handleNewLesson = () => {
-    if (audioURL) URL.revokeObjectURL(audioURL);
-    setCurrentLessonId(null);
-    setLessonName('');
-    setAudioFile(null);
-    setAudioURL(null);
-    setTranscriptText('');
-    setIpaData({});
-    setCompletedSentences({});
-    setIsStarted(false);
-    setAppMode('normal');
-    if (window.innerWidth < 768) setIsSidebarOpen(false);
-  };
-
-  const handleTrashLesson = async (id: string) => {
-    import('@/lib/db').then(async ({ trashLesson }) => {
-      await trashLesson(id);
-      if (currentLessonId === id) {
-        handleNewLesson();
-      }
-      setLessonToDelete(null);
-      loadLessonsList();
-    });
-  };
-
-  const handleDeletePermanently = async (id: string) => {
-    await deleteLesson(id);
-    if (currentLessonId === id) {
-      handleNewLesson();
-    }
-    setLessonToDelete(null);
-    loadLessonsList();
-  };
-
-  const fetchIPA = async (sentencesToUse = transcript) => {
-    if (Object.keys(ipaData).length > 0) return;
-    setIsGeneratingIPA(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
-      
-      const sentencesToTranslate = sentencesToUse.map(s => ({ id: s.id, text: s.text }));
-      
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: JSON.stringify(sentencesToTranslate),
-        config: {
-          systemInstruction: getIPASystemInstruction(recognitionLang),
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.NUMBER },
-                ipa: { type: Type.STRING }
-              },
-              required: ["id", "ipa"]
-            }
-          }
-        }
-      });
-
-      const jsonStr = response.text?.trim() || "[]";
-      const parsed = JSON.parse(jsonStr);
-      
-      const newIpaData: Record<number, string> = {};
-      parsed.forEach((item: any) => {
-        newIpaData[item.id] = item.ipa;
-      });
-      
-      setIpaData(newIpaData);
-    } catch (error) {
-      console.error("Failed to generate IPA", error);
-    } finally {
-      setIsGeneratingIPA(false);
-    }
-  };
-
-  const handleStartLearning = async () => {
-    if (!audioFile || !transcriptText) return;
-    
-    let lessonId = currentLessonId;
-    const sentences = parseTranscript(transcriptText);
-    
-    if (!lessonId) {
-      lessonId = Date.now().toString();
-      const name = lessonName.trim() || audioFile.name.replace(/\.[^/.]+$/, "");
-      
-      const newLesson = {
-        id: lessonId,
-        name,
-        language: recognitionLang,
-        audioFile,
-        transcriptText,
-        ipaData: {},
-        completedSentences: {},
-        totalSentences: sentences.length,
-        createdAt: Date.now(),
-        lastAccessed: Date.now()
-      };
-      
-      await saveLesson(newLesson);
-      setCurrentLessonId(lessonId);
-      setLessonName(name);
-      loadLessonsList();
-    } else {
-      // Restore audio file for existing lesson
-      const existingLesson = await getLesson(lessonId);
-      if (existingLesson) {
-        existingLesson.audioFile = audioFile;
-        existingLesson.isTrashed = false;
-        existingLesson.lastAccessed = Date.now();
-        await saveLesson(existingLesson);
-        loadLessonsList();
-      }
-    }
-    
-    if (appMode === 'shadowing') {
-      await fetchIPA(sentences);
-    }
-    
-    setIsStarted(true);
-  };
-
-  const handleModeChange = async (mode: AppMode) => {
-    setAppMode(mode);
-    if (mode === 'shadowing') {
-      await fetchIPA();
     }
   };
 
@@ -489,7 +137,7 @@ export default function NodaApp() {
                     audioRef.current.play().catch(() => {});
                   }
                   isLoopDelayingRef.current = false;
-                }, LOOP_DELAY_MS);
+                }, 500); // LOOP_DELAY_MS
               }
             } else if ((appModeRef.current === 'dictation' || appModeRef.current === 'shadowing') && !isCompleted) {
               audioRef.current.pause();
@@ -508,7 +156,7 @@ export default function NodaApp() {
     return () => {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
-  }, [isPlaying, transcript]);
+  }, [isPlaying, transcript, setCurrentTime, loopTimeoutRef, isLoopDelayingRef, loopModeRef, appModeRef, completedSentencesRef, audioRef]);
 
   // Auto-scroll to active sentence
   useEffect(() => {
@@ -522,27 +170,6 @@ export default function NodaApp() {
     }
   }, [currentTime, transcript]);
 
-  const togglePlayPause = () => {
-    if (audioRef.current) {
-      if (audioRef.current.paused) {
-        audioRef.current.play().catch(() => {});
-      } else {
-        audioRef.current.pause();
-      }
-    }
-  };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = parseFloat(e.target.value);
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
-      setCurrentTime(time);
-      lastScrolledIndexRef.current = -1; // Force scroll on seek
-      if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
-      isLoopDelayingRef.current = false;
-    }
-  };
-
   const handleSentenceClick = (sentence: Sentence) => {
     if (audioRef.current) {
       audioRef.current.currentTime = sentence.start;
@@ -553,14 +180,6 @@ export default function NodaApp() {
       if (audioRef.current.paused) {
         audioRef.current.play().catch(() => {});
       }
-    }
-  };
-
-  const changeSpeed = () => {
-    const nextSpeed = getNextPlaybackSpeed(playbackRate);
-    setPlaybackRate(nextSpeed);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = nextSpeed;
     }
   };
 
@@ -622,8 +241,6 @@ export default function NodaApp() {
     }
   };
 
-  const isReady = isStarted;
-
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (loginUsername === AUTH_USERNAME && loginPassword === AUTH_PASSWORD) {
@@ -642,8 +259,8 @@ export default function NodaApp() {
     setLoginPassword('');
   };
 
-  if (isAuthChecking) {
-    return <div className="h-screen bg-gray-950 flex items-center justify-center text-emerald-500 font-mono">Loading...</div>;
+  if (!isMounted) {
+    return null;
   }
 
   if (!isAuthenticated) {
@@ -662,231 +279,268 @@ export default function NodaApp() {
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden selection:bg-emerald-500/30">
       
-      {/* Sidebar */}
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={setIsSidebarOpen}
-        lessons={lessonsList}
-        currentLessonId={currentLessonId}
-        expandedSections={expandedSections}
-        onLoadLesson={handleLoadLesson}
-        onNewLesson={handleNewLesson}
-        onTrashLesson={(id) => {
-          if (currentLessonId === id && !lessonsList.find(l => l.id === id)?.isTrashed) {
-            handleTrashLesson(id);
-          } else {
-            setLessonToDelete(id);
-          }
-        }}
-        onLogout={handleLogout}
-        onToggleSection={(section, expanded) => setExpandedSections(prev => ({ ...prev, [section]: expanded }))}
-      />
+      {/* Sidebar (Desktop Only) */}
+      <div className="hidden md:block">
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onToggle={setIsSidebarOpen}
+          lessons={lessonsList}
+          currentLessonId={currentLessonId}
+          expandedSections={expandedSections}
+          onLoadLesson={handleLoadLesson}
+          onNewLesson={handleNewLesson}
+          onTrashLesson={(id) => {
+            if (currentLessonId === id && !lessonsList.find(l => l.id === id)?.isTrashed) {
+              handleTrashLesson(id);
+            } else {
+              setLessonToDelete(id);
+            }
+          }}
+          onLogout={handleLogout}
+          onToggleSection={(section, expanded) => setExpandedSections(prev => ({ ...prev, [section]: expanded }))}
+        />
+      </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full overflow-y-auto relative">
+      <div className="flex-1 flex flex-col h-full overflow-y-auto relative pb-16 md:pb-0">
         <div className="max-w-4xl mx-auto w-full p-4 md:p-8 flex flex-col min-h-full">
           
           {/* Header */}
-          <header className="flex items-center justify-between py-6 mb-4 border-b border-gray-800 shrink-0 flex-wrap gap-4">
+          <header className="flex flex-col md:flex-row md:items-center justify-between py-6 mb-4 border-b border-gray-800 shrink-0 gap-4">
             <div className="flex items-center gap-3">
               {!isSidebarOpen && (
-                <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors" title="Open Sidebar">
+                <button onClick={() => setIsSidebarOpen(true)} className="hidden md:block p-2 -ml-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors" title="Open Sidebar">
                   <PanelLeft size={24} />
                 </button>
               )}
+              {currentLessonId && (
+                <button 
+                  onClick={handleNewLesson} 
+                  className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors" 
+                  title="Back to List"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+              )}
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3 text-white">
-                <span className="text-emerald-400">🎧</span> Shadowing App
+                <span className="text-emerald-400">🎧</span> Noda.
               </h1>
             </div>
+
+            {/* Tabs */}
+            {isStarted && (
+              <div className="flex bg-gray-800 rounded-lg p-1 border border-gray-700 overflow-x-auto">
+                <button
+                  onClick={() => handleModeChange('normal')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    appMode === 'normal'
+                      ? 'bg-gray-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Normal (Listen)
+                </button>
+                <button
+                  onClick={() => handleModeChange('dictation')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    appMode === 'dictation'
+                      ? 'bg-purple-500/40 text-purple-100'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Dictation
+                </button>
+                <button
+                  onClick={() => handleModeChange('shadowing')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${
+                    appMode === 'shadowing'
+                      ? 'bg-green-500/40 text-green-100'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {isGeneratingIPA && appMode === 'shadowing' && (
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                  Shadowing
+                </button>
+                <button
+                  onClick={() => handleModeChange('flashcard' as AppMode)}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    appMode === 'flashcard' as AppMode
+                      ? 'bg-blue-500/40 text-blue-100'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Flashcard
+                </button>
+              </div>
+            )}
           </header>
 
-          {/* Upload Section (Hidden when ready) */}
-          {!isStarted && (
-            <div className="flex flex-col gap-6 mb-8 shrink-0">
-              {/* Lesson Name Input */}
-              <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-lg w-full max-w-md mx-auto">
-                <label className="block text-sm font-medium text-gray-400 mb-2">Lesson Name (Optional)</label>
-                <input 
-                  type="text" 
-                  value={lessonName}
-                  onChange={(e) => setLessonName(e.target.value)}
-                  placeholder={audioFile ? audioFile.name.replace(/\.[^/.]+$/, "") : "My awesome lesson"}
-                  className="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-3 outline-none"
+          {/* Mobile Views (Only visible on mobile when no lesson is selected) */}
+          <div className="md:hidden flex-1 overflow-y-auto">
+            {!currentLessonId && activeTab === 'Lessons' && (
+              <div className="space-y-6">
+                <button
+                  onClick={handleNewLesson}
+                  className="w-full py-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-xl border border-emerald-500/30 flex items-center justify-center gap-2 font-medium transition-colors mb-4"
+                >
+                  <Plus size={20} /> New Activity
+                </button>
+                <SidebarSection
+                  title="Audio Lessons"
+                  sections={['audio-en', 'audio-de']}
+                  lessons={lessonsList}
+                  currentLessonId={currentLessonId}
+                  expandedSections={expandedSections}
+                  onToggleSection={(section, expanded) => setExpandedSections(prev => ({ ...prev, [section]: expanded }))}
+                  onLoadLesson={handleLoadLesson}
+                  onTrashLesson={(id) => {
+                    if (currentLessonId === id && !lessonsList.find(l => l.id === id)?.isTrashed) {
+                      handleTrashLesson(id);
+                    } else {
+                      setLessonToDelete(id);
+                    }
+                  }}
+                  activeMenu={null}
+                  setActiveMenu={() => {}}
                 />
               </div>
+            )}
 
-              <div className="grid md:grid-cols-2 gap-6">
-              {/* Audio Upload */}
-              <div className={`p-6 rounded-xl border-2 border-dashed transition-colors ${audioFile ? 'border-green-500 bg-green-500/10' : 'border-gray-700 hover:border-gray-500 bg-gray-900/50'}`}>
-                <label className="flex flex-col items-center justify-center cursor-pointer h-full min-h-[160px]">
-                  {audioFile ? (
-                    <>
-                      <CheckCircle2 className="w-12 h-12 text-green-500 mb-3" />
-                      <span className="text-green-400 font-medium text-center">{audioFile.name}</span>
-                    </>
-                  ) : (
-                    <>
-                      {currentLessonId ? (
-                        <AlertTriangle className="w-12 h-12 text-emerald-500 mb-3" />
-                      ) : (
-                        <Music className="w-12 h-12 text-gray-400 mb-3" />
-                      )}
-                      <span className="text-gray-300 font-medium text-center">
-                        {currentLessonId ? "Audio file missing. Please re-upload to continue." : "Upload Audio File"}
-                      </span>
-                      <span className="text-gray-500 text-sm mt-1">MP3, WAV, M4A</span>
-                    </>
-                  )}
-                  <input type="file" accept="audio/*" className="hidden" onChange={handleAudioUpload} />
-                </label>
+            {!currentLessonId && activeTab === 'Flashcards' && (
+              <div className="space-y-6">
+                <SidebarSection
+                  title="Flashcards Deck"
+                  sections={['flashcard-en', 'flashcard-de']}
+                  lessons={lessonsList}
+                  currentLessonId={currentLessonId}
+                  expandedSections={expandedSections}
+                  onToggleSection={(section, expanded) => setExpandedSections(prev => ({ ...prev, [section]: expanded }))}
+                  onLoadLesson={handleLoadLesson}
+                  onTrashLesson={(id) => {
+                    if (currentLessonId === id && !lessonsList.find(l => l.id === id)?.isTrashed) {
+                      handleTrashLesson(id);
+                    } else {
+                      setLessonToDelete(id);
+                    }
+                  }}
+                  activeMenu={null}
+                  setActiveMenu={() => {}}
+                  emptyMessage="No flashcard decks yet."
+                />
               </div>
+            )}
 
-              {/* Transcript Upload */}
-              <div className={`p-6 rounded-xl border-2 border-dashed transition-colors ${transcriptText ? 'border-green-500 bg-green-500/10' : 'border-gray-700 hover:border-gray-500 bg-gray-900/50'}`}>
-                <label className="flex flex-col items-center justify-center cursor-pointer h-full min-h-[160px]">
-                  {transcriptText ? (
-                    <>
-                      <CheckCircle2 className="w-12 h-12 text-green-500 mb-3" />
-                      <span className="text-green-400 font-medium text-center">Transcript Loaded</span>
-                      <span className="text-green-500/70 text-sm mt-1">{transcriptText.split('\n').filter(s => s.trim()).length} sentences</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-12 h-12 text-gray-400 mb-3" />
-                      <span className="text-gray-300 font-medium">Upload Transcript</span>
-                      <span className="text-gray-500 text-sm mt-1">.srt file</span>
-                    </>
-                  )}
-                  <input type="file" accept=".srt" className="hidden" onChange={handleTranscriptUpload} />
-                </label>
+            {!currentLessonId && activeTab === 'Stats' && (
+              <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
+                <div className="text-6xl">📊</div>
+                <h2 className="text-xl font-bold text-white">Stats</h2>
+                <p>Your learning statistics will appear here.</p>
               </div>
-            </div>
-
-            {/* Language Selection & Start Button */}
-            <div className="flex flex-col items-center gap-6 bg-gray-900 p-8 rounded-xl border border-gray-800 shadow-lg">
-               <div className="flex flex-col gap-4 w-full max-w-md">
-                 <div className="flex items-center justify-between gap-4 bg-gray-800/50 p-3 rounded-lg border border-gray-700/50">
-                   <div className="flex items-center gap-3">
-                     <Upload className="w-5 h-5 text-gray-400" />
-                     <span className="text-gray-300 font-medium">Language:</span>
-                   </div>
-                   <select 
-                     value={recognitionLang} 
-                     onChange={(e) => setRecognitionLang(e.target.value)}
-                     className="bg-gray-900 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2 outline-none min-w-[140px]"
-                   >
-                     <option value="de-DE">German (de-DE)</option>
-                     <option value="en-US">English (en-US)</option>
-                   </select>
-                 </div>
-
-                 <div className="flex items-center justify-between gap-4 bg-gray-800/50 p-3 rounded-lg border border-gray-700/50">
-                   <div className="flex items-center gap-3">
-                     <Upload className="w-5 h-5 text-gray-400" />
-                     <span className="text-gray-300 font-medium">Learning Mode:</span>
-                   </div>
-                   <select 
-                     value={appMode} 
-                     onChange={(e) => setAppMode(e.target.value as AppMode)}
-                     className="bg-gray-900 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2 outline-none min-w-[140px]"
-                   >
-                     {LEARNING_MODES.map(mode => (
-                       <option key={mode.value} value={mode.value}>{mode.label}</option>
-                     ))}
-                   </select>
-                 </div>
-               </div>
-               
-               <button 
-                 disabled={!audioFile || !transcriptText || isGeneratingIPA}
-                 onClick={handleStartLearning}
-                 className="px-10 py-4 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold text-lg rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-lg shadow-emerald-500/20 active:scale-95"
-               >
-                 {isGeneratingIPA ? (
-                   <>
-                     <div className="w-6 h-6 border-4 border-gray-950 border-t-transparent rounded-full animate-spin"></div>
-                     Generating IPA & Starting...
-                   </>
-                 ) : (
-                   <>{currentLessonId ? "Restore Lesson & Continue" : "Start Learning"} <Play className="w-6 h-6 fill-current" /></>
-                 )}
-               </button>
-            </div>
+            )}
           </div>
-        )}
 
-        {/* Hidden Audio Element */}
-        {audioURL && (
-          <audio 
-            ref={audioRef} 
-            src={audioURL} 
-            loop={loopMode === 'all'}
-            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-            onEnded={() => {
-              if (loopMode !== 'all') {
-                setIsPlaying(false);
-              }
-            }}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-          />
-        )}
+          {/* Desktop & Active Lesson View */}
+          <div className={`flex-1 flex flex-col min-h-0 ${!currentLessonId ? 'hidden md:flex' : 'flex'}`}>
+            {/* Upload Section (Hidden when ready) */}
+            {!isStarted && (
+              <UploadPanel
+                lessonName={lessonName}
+                setLessonName={setLessonName}
+                audioFile={audioFile}
+                currentLessonId={currentLessonId}
+                handleAudioUpload={handleAudioUpload}
+                transcriptText={transcriptText}
+                handleTranscriptUpload={handleTranscriptUpload}
+                recognitionLang={recognitionLang}
+                setRecognitionLang={setRecognitionLang}
+                appMode={appMode}
+                setAppMode={setAppMode}
+                isGeneratingIPA={isGeneratingIPA}
+                handleStartLearning={handleStartLearning}
+                handleFlashcardUpload={handleFlashcardUpload}
+              />
+            )}
 
-          {/* Player & Transcript Section */}
-          {isReady && (
-            <div className="flex flex-col flex-1 min-h-0 gap-6">
-            
-            <Player
-              isPlaying={isPlaying}
-              duration={duration}
-              currentTime={currentTime}
-              playbackRate={playbackRate}
-              appMode={appMode}
-              loopMode={loopMode}
-              isGeneratingIPA={isGeneratingIPA}
-              onPlayPause={togglePlayPause}
-              onSeek={(time) => {
-                if (audioRef.current) {
-                  audioRef.current.currentTime = time;
-                  setCurrentTime(time);
-                  lastScrolledIndexRef.current = -1;
-                  if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
-                  isLoopDelayingRef.current = false;
-                }
-              }}
-              onSpeedChange={changeSpeed}
-              onModeChange={handleModeChange}
-              onLoopModeChange={() => setLoopMode(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none')}
-            />
+            {/* Hidden Audio Element */}
+            {audioURL && (
+              <audio 
+                ref={audioRef} 
+                src={audioURL} 
+                loop={loopMode === 'all'}
+                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                onEnded={() => {
+                  if (loopMode !== 'all') {
+                    setIsPlaying(false);
+                  }
+                }}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+              />
+            )}
 
-            <Transcript
-              transcript={transcript}
-              currentTime={currentTime}
-              appMode={appMode}
-              dictationInputs={dictationInputs}
-              completedSentences={completedSentences}
-              isRecording={isRecording}
-              spokenResults={spokenResults}
-              recognitionErrors={recognitionErrors}
-              ipaData={ipaData}
-              scrollContainerRef={scrollContainerRef}
-              onSentenceClick={handleSentenceClick}
-              onDictationChange={handleDictationChange}
-              onDictationKeyDown={handleDictationKeyDown}
-              onToggleRecording={toggleRecording}
-              onSkip={handleSkip}
-              onSimulateSuccess={handleSimulateSuccess}
-            />
+            {/* Player & Transcript Section */}
+            {isStarted && appMode !== 'flashcard' && (
+              <div className="flex flex-col flex-1 min-h-0 gap-6">
+              
+              <Player
+                isPlaying={isPlaying}
+                duration={duration}
+                currentTime={currentTime}
+                playbackRate={playbackRate}
+                appMode={appMode}
+                loopMode={loopMode}
+                isGeneratingIPA={isGeneratingIPA}
+                onPlayPause={togglePlayPause}
+                onSeek={handleSeek}
+                onSpeedChange={changeSpeed}
+                onModeChange={handleModeChange}
+                onLoopModeChange={toggleLoopMode}
+              />
 
-            </div>
-          )}
+              <Transcript
+                transcript={transcript}
+                currentTime={currentTime}
+                appMode={appMode}
+                dictationInputs={dictationInputs}
+                completedSentences={completedSentences}
+                isRecording={isRecording}
+                spokenResults={spokenResults}
+                recognitionErrors={recognitionErrors}
+                ipaData={ipaData}
+                scrollContainerRef={scrollContainerRef}
+                onSentenceClick={handleSentenceClick}
+                onDictationChange={handleDictationChange}
+                onDictationKeyDown={handleDictationKeyDown}
+                onToggleRecording={toggleRecording}
+                onSkip={handleSkip}
+                onSimulateSuccess={handleSimulateSuccess}
+              />
+
+              </div>
+            )}
+
+            {/* Flashcard Placeholder */}
+            {isStarted && appMode === 'flashcard' && (
+              <div className="flex-1 flex items-center justify-center bg-gray-900 rounded-2xl border border-gray-800 p-8">
+                <div className="text-center space-y-4">
+                  <div className="text-6xl">🎴</div>
+                  <h2 className="text-2xl font-bold text-white">Flashcard Placeholder</h2>
+                  <p className="text-gray-400 max-w-md mx-auto">
+                    This section will contain the flashcard UI for reviewing vocabulary and sentences.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Delete Modal */}
       {lessonToDelete && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
             <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
               <Trash2 className="w-6 h-6 text-red-500" />
             </div>
@@ -899,6 +553,37 @@ export default function NodaApp() {
           </div>
         </div>
       )}
+
+      {/* Mobile Bottom Tab Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 flex items-center justify-around p-2 z-40 pb-safe">
+        <button
+          onClick={() => setActiveTab('Lessons')}
+          className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
+            activeTab === 'Lessons' ? 'text-emerald-400' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <span className="text-xl">🎧</span>
+          <span className="text-[10px] font-medium">Lessons</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('Flashcards')}
+          className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
+            activeTab === 'Flashcards' ? 'text-emerald-400' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <span className="text-xl">🎴</span>
+          <span className="text-[10px] font-medium">Flashcards</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('Stats')}
+          className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
+            activeTab === 'Stats' ? 'text-emerald-400' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <span className="text-xl">📊</span>
+          <span className="text-[10px] font-medium">Stats</span>
+        </button>
+      </div>
     </div>
   );
 }

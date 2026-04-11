@@ -1,0 +1,72 @@
+import React from 'react';
+import { Play, Pause, Gauge, Repeat, Repeat1 } from 'lucide-react';
+import { AppMode, LoopMode } from '@/types';
+import { LOOP_MODE_LABELS } from '@/constants';
+
+interface PlayerControlsProps {
+  isPlaying: boolean;
+  playbackRate: number;
+  appMode: AppMode;
+  loopMode: LoopMode;
+  isGeneratingIPA: boolean;
+  onPlayPause: () => void;
+  onSpeedChange: () => void;
+  onModeChange: (mode: AppMode) => void;
+  onLoopModeChange: () => void;
+}
+
+export function PlayerControls({
+  isPlaying,
+  playbackRate,
+  appMode,
+  loopMode,
+  isGeneratingIPA,
+  onPlayPause,
+  onSpeedChange,
+  onModeChange,
+  onLoopModeChange,
+}: PlayerControlsProps) {
+  return (
+    <div className="flex items-center justify-between">
+      {/* Speed Control */}
+      <button
+        onClick={onSpeedChange}
+        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+        title="Playback Speed"
+      >
+        <Gauge className="w-5 h-5 text-blue-400" />
+        <span className="font-medium font-mono">{playbackRate.toFixed(2)}x</span>
+      </button>
+
+      {/* Play/Pause */}
+      <button
+        onClick={onPlayPause}
+        className="w-14 h-14 flex items-center justify-center rounded-full bg-emerald-400 hover:bg-yellow-300 text-gray-950 transition-transform active:scale-95"
+      >
+        {isPlaying ? (
+          <Pause className="w-6 h-6 fill-current" />
+        ) : (
+          <Play className="w-6 h-6 fill-current ml-1" />
+        )}
+      </button>
+
+      {/* Loop Control */}
+      <button
+        onClick={onLoopModeChange}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+          loopMode !== 'none'
+            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+            : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-transparent'
+        }`}
+        title="Loop Mode (Shortcut: L)"
+      >
+        {loopMode === 'one' ? (
+          <Repeat1 className="w-5 h-5" />
+        ) : (
+          <Repeat className={`w-5 h-5 ${loopMode === 'all' ? 'text-green-400' : ''}`} />
+        )}
+        <span className="font-medium hidden sm:inline">{LOOP_MODE_LABELS[loopMode]}</span>
+      </button>
+    </div>
+  );
+}

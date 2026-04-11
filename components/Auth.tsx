@@ -22,7 +22,7 @@ export function AuthScreen({
 }: AuthProps) {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 font-sans selection:bg-emerald-500/30">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 max-w-md w-full shadow-2xl">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 max-w-md w-full">
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4 border border-emerald-500/20">
             <Lock className="w-8 h-8 text-emerald-500" />
@@ -79,7 +79,7 @@ export function AuthScreen({
 
           <button
             type="submit"
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-gray-950 bg-emerald-500 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 focus:ring-offset-gray-900 transition-colors mt-6"
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-bold text-gray-950 bg-emerald-500 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 focus:ring-offset-gray-900 transition-colors mt-6"
           >
             Sign In
           </button>

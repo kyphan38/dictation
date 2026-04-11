@@ -9,6 +9,7 @@ export type Sentence = {
 // Learning modes
 export type LoopMode = 'none' | 'all' | 'one';
 export type AppMode = 'normal' | 'dictation' | 'shadowing' | 'flashcard';
+export type AppTab = 'Lessons' | 'Flashcards' | 'Stats';
 
 // Pronunciation result
 export type SpokenResult = {
@@ -27,6 +28,7 @@ export type IPAData = Record<number, string>;
 // Lesson summary from DB
 export type LessonSummary = {
   id: string;
+  type?: 'audio' | 'flashcard';
   name: string;
   language: string;
   progress: number;
@@ -38,6 +40,7 @@ export type LessonSummary = {
 // Lesson detail from DB
 export type Lesson = {
   id: string;
+  type?: 'audio' | 'flashcard';
   name: string;
   language: string;
   audioFile?: File;
