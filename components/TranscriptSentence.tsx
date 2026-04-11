@@ -9,6 +9,7 @@ interface TranscriptSentenceProps {
   index: number;
   isActive: boolean;
   isPast: boolean;
+  isPlaying: boolean;
   appMode: AppMode;
   /** When true (normal mode only), caption text is visually hidden but layout stays. */
   hideCaptions?: boolean;
@@ -32,6 +33,7 @@ export function TranscriptSentence({
   index,
   isActive,
   isPast,
+  isPlaying,
   appMode,
   hideCaptions,
   dictationInput,
@@ -105,11 +107,13 @@ export function TranscriptSentence({
         sentence={sentence}
         isActive={isActive}
         isPast={isPast}
+        isPlaying={isPlaying}
         appMode={appMode}
         isRecording={isRecording}
         spokenResult={spokenResult}
         recognitionError={recognitionError}
         isCompleted={isCompleted}
+        onSentenceClick={onSentenceClick}
         onToggleRecording={onToggleRecording}
         onSkip={onSkip}
       />
@@ -222,29 +226,48 @@ function StatusBar({
   sentence,
   isActive,
   isPast,
+  isPlaying,
   appMode,
   isRecording,
   spokenResult,
   recognitionError,
   isCompleted,
+  onSentenceClick,
   onToggleRecording,
   onSkip,
 }: {
   sentence: Sentence;
   isActive: boolean;
   isPast: boolean;
+  isPlaying: boolean;
   appMode: AppMode;
   isRecording: number | null;
   spokenResult?: SpokenResult;
   recognitionError?: string;
   isCompleted: boolean;
+  onSentenceClick: (sentence: Sentence) => void;
   onToggleRecording: (sentence: Sentence) => void;
   onSkip: (sentence: Sentence) => void;
 }) {
   if (appMode === 'shadowing') {
     return (
       <div className="shrink-0 flex flex-row flex-wrap items-center justify-end gap-2 mt-1 max-w-[min(100%,280px)]">
-        {isActive && <Play className="w-5 h-5 text-emerald-400 fill-current animate-pulse shrink-0" />}
+        {isActive && isPlaying && (
+          <Play className="w-5 h-5 text-emerald-400 fill-current animate-pulse shrink-0 pointer-events-none" aria-hidden />
+        )}
+        {isActive && !isPlaying && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSentenceClick(sentence);
+            }}
+            className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-emerald-400 transition-colors shrink-0"
+            title="Replay sentence from the start"
+          >
+            <Play className="w-5 h-5 fill-current ml-0.5" />
+          </button>
+        )}
         {isPast && !isActive && <CheckCircle2 className="w-5 h-5 text-gray-600 shrink-0" />}
         {isActive && !isCompleted && !spokenResult && (
           <button

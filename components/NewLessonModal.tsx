@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Music2, FileText } from 'lucide-react';
+import { isLessonNameTaken } from '@/lib/utils';
 
 interface LessonData {
   name: string;
@@ -13,6 +14,7 @@ interface NewLessonModalProps {
   onClose: () => void;
   onSubmit: (data: LessonData) => void;
   isGeneratingIPA: boolean;
+  getTakenAudioLessonNames: () => string[];
 }
 
 function isAudioFile(file: File) {
@@ -23,7 +25,12 @@ function isSrtFile(file: File) {
   return file.name.toLowerCase().endsWith('.srt') || file.type === 'application/x-subrip' || file.type === 'text/plain';
 }
 
-export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLessonModalProps) {
+export function NewLessonModal({
+  onClose,
+  onSubmit,
+  isGeneratingIPA,
+  getTakenAudioLessonNames,
+}: NewLessonModalProps) {
   const [lessonName, setLessonName] = useState('');
   const [language, setLanguage] = useState<'en' | 'de'>('de');
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -31,6 +38,7 @@ export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLesson
   const [audioDrag, setAudioDrag] = useState(false);
   const [transcriptDrag, setTranscriptDrag] = useState(false);
   const [generateIpa, setGenerateIpa] = useState(false);
+  const [audioNameConflict, setAudioNameConflict] = useState<string | null>(null);
 
   useEffect(() => {
     if (!transcriptFile) setGenerateIpa(false);
@@ -46,11 +54,23 @@ export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLesson
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, isGeneratingIPA]);
 
-  const applyAudioFile = useCallback((file: File) => {
-    if (!isAudioFile(file)) return;
-    setAudioFile(file);
-    setLessonName((n) => n || file.name.replace(/\.[^/.]+$/, ''));
-  }, []);
+  const applyAudioFile = useCallback(
+    (file: File) => {
+      if (!isAudioFile(file)) return;
+      const stem = file.name.replace(/\.[^/.]+$/, '');
+      const taken = getTakenAudioLessonNames();
+      if (isLessonNameTaken(stem, taken)) {
+        setAudioNameConflict(
+          `A lesson named "${stem}" already exists. Use another file or rename the lesson after choosing a file with a different name.`
+        );
+        return;
+      }
+      setAudioNameConflict(null);
+      setAudioFile(file);
+      setLessonName(stem);
+    },
+    [getTakenAudioLessonNames]
+  );
 
   const applyTranscriptFile = useCallback((file: File) => {
     if (!isSrtFile(file)) return;
@@ -60,6 +80,7 @@ export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLesson
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) applyAudioFile(file);
+    e.target.value = '';
   };
 
   const handleTranscriptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,7 +154,10 @@ export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLesson
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50"
               placeholder="Lesson name (e.g., German A1 Basics)"
               value={lessonName}
-              onChange={(e) => setLessonName(e.target.value)}
+              onChange={(e) => {
+                setLessonName(e.target.value);
+                setAudioNameConflict(null);
+              }}
               disabled={isGeneratingIPA}
             />
           </div>
@@ -171,7 +195,14 @@ export function NewLessonModal({ onClose, onSubmit, isGeneratingIPA }: NewLesson
                 disabled={isGeneratingIPA}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
               />
-              {audioFile && <p className="text-emerald-500 font-medium relative z-10 pointer-events-none">✓ {audioFile.name}</p>}
+              {audioNameConflict && (
+                <p className="text-sm text-amber-400 relative z-10 px-2 mb-2" role="alert">
+                  {audioNameConflict}
+                </p>
+              )}
+              {audioFile && !audioNameConflict && (
+                <p className="text-emerald-500 font-medium relative z-10 pointer-events-none">✓ {audioFile.name}</p>
+              )}
             </div>
 
             <div

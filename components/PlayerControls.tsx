@@ -56,7 +56,7 @@ export function PlayerControls({
         {loopMode === 'one' ? (
           <Repeat1 className="w-5 h-5" />
         ) : (
-          <Repeat className={`w-5 h-5 ${loopMode === 'all' ? 'text-green-400' : ''}`} />
+          <Repeat className="w-5 h-5" />
         )}
         <span className="font-medium hidden sm:inline">{LOOP_MODE_LABELS[loopMode]}</span>
       </button>

@@ -7,7 +7,7 @@ export type Sentence = {
 };
 
 // Learning modes
-export type LoopMode = 'none' | 'all' | 'one';
+export type LoopMode = 'none' | 'one';
 export type AppMode = 'normal' | 'dictation' | 'shadowing' | 'flashcard';
 // Pronunciation result
 export type SpokenResult = {

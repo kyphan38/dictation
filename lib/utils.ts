@@ -18,6 +18,14 @@ export const getLetters = (text: string) => {
 };
 
 /** Ensure `base` does not collide with existing names (case-insensitive); appends " (1)", " (2)", … */
+/** True if `base` (trimmed) collides with any name in `existingNames`, case-insensitive — same rule as {@link uniquifyName}. */
+export function isLessonNameTaken(base: string, existingNames: string[]): boolean {
+  const t = base.trim();
+  if (!t) return false;
+  const taken = new Set(existingNames.map((n) => n.trim().toLowerCase()).filter(Boolean));
+  return taken.has(t.toLowerCase());
+}
+
 export function uniquifyName(base: string, existingNames: string[]): string {
   const t = base.trim();
   if (!t) return t;

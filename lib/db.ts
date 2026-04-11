@@ -67,7 +67,8 @@ export const getAllLessons = async () => {
 
 export const deleteLesson = async (id: string) => {
   const db = await initDB();
-  if (db) await db.delete('lessons', id);
+  if (!db) throw new Error('Database not available');
+  await db.delete('lessons', id);
 };
 
 export const trashLesson = async (id: string) => {
@@ -85,9 +86,11 @@ export const trashLesson = async (id: string) => {
 /** Remove audio file only; keep transcript, progress, and lesson in library (not trashed). */
 export const clearLessonMedia = async (id: string) => {
   const db = await initDB();
-  if (!db) return;
+  if (!db) throw new Error('Database not available');
   const lesson = await db.get('lessons', id);
-  if (!lesson || lesson.type === 'flashcard') return;
+  if (!lesson || lesson.type === 'flashcard') {
+    throw new Error('Lesson not found or cannot clear media for this item');
+  }
   lesson.audioFile = null;
   lesson.type = 'audio';
   lesson.isTrashed = false;

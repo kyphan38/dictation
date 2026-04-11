@@ -4,7 +4,16 @@ import { Transcript } from './Transcript';
 
 const MemoPlayer = React.memo(Player);
 const MemoTranscript = React.memo(Transcript);
-import { LessonItem, AppMode, Sentence, SpokenResult, DictationInputs, CompletedSentences, IPAData } from '@/types';
+import {
+  LessonItem,
+  AppMode,
+  LoopMode,
+  Sentence,
+  SpokenResult,
+  DictationInputs,
+  CompletedSentences,
+  IPAData,
+} from '@/types';
 
 interface LessonViewProps {
   lesson: LessonItem;
@@ -14,7 +23,7 @@ interface LessonViewProps {
   duration: number;
   currentTime: number;
   playbackRate: number;
-  loopMode: 'none' | 'all' | 'one';
+  loopMode: LoopMode;
   isGeneratingIPA: boolean;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
@@ -91,6 +100,7 @@ export function LessonView({
       <MemoTranscript
         transcript={transcript}
         currentTime={currentTime}
+        isPlaying={isPlaying}
         appMode={mode}
         hideCaptions={hideCaptions}
         onToggleHideCaptions={onToggleHideCaptions}

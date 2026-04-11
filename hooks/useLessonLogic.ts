@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Sentence, AppMode, ExpandedSections } from '@/types';
 import {
@@ -65,6 +65,10 @@ export function useLessonLogic(
     completedSentencesRef.current = completedSentences;
   }, [completedSentences]);
 
+  useEffect(() => {
+    ipaDataRef.current = ipaData;
+  }, [ipaData]);
+
   const transcript = useMemo(() => parseTranscript(transcriptText), [transcriptText]);
 
   const loadLessonsList = async (opts?: { trackLoading?: boolean }) => {
@@ -107,16 +111,58 @@ export function useLessonLogic(
     loadLessonsList({ trackLoading: true });
   }, []);
 
+  const progressSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    if (currentLessonId && isStarted) {
-      const saveProgress = setTimeout(() => {
-        updateLessonProgress(currentLessonId, completedSentences, ipaData).then(() => {
-          loadLessonsList();
-        });
-      }, SAVE_PROGRESS_DELAY_MS);
-      return () => clearTimeout(saveProgress);
+    if (!currentLessonId || !isStarted) {
+      if (progressSaveTimeoutRef.current) {
+        clearTimeout(progressSaveTimeoutRef.current);
+        progressSaveTimeoutRef.current = null;
+      }
+      return;
     }
+    if (progressSaveTimeoutRef.current) {
+      clearTimeout(progressSaveTimeoutRef.current);
+      progressSaveTimeoutRef.current = null;
+    }
+    progressSaveTimeoutRef.current = setTimeout(() => {
+      progressSaveTimeoutRef.current = null;
+      updateLessonProgress(
+        currentLessonId,
+        completedSentencesRef.current,
+        ipaDataRef.current
+      ).then(() => {
+        loadLessonsList();
+      });
+    }, SAVE_PROGRESS_DELAY_MS);
+    return () => {
+      if (progressSaveTimeoutRef.current) {
+        clearTimeout(progressSaveTimeoutRef.current);
+        progressSaveTimeoutRef.current = null;
+      }
+    };
   }, [completedSentences, ipaData, currentLessonId, isStarted]);
+
+  /** Cancel debounced progress save and persist latest progress so a later put cannot resurrect cleared audio. */
+  const prepareForLessonMediaClear = useCallback(async (lessonId: string) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7303/ingest/e06af307-892f-439f-a0fc-7ef70f1b69d6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'753b75'},body:JSON.stringify({sessionId:'753b75',location:'useLessonLogic.ts:prepareForLessonMediaClear',message:'flush progress before media clear',data:{lessonId,activeId:currentLessonIdRef.current,isStarted},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
+    if (progressSaveTimeoutRef.current) {
+      clearTimeout(progressSaveTimeoutRef.current);
+      progressSaveTimeoutRef.current = null;
+    }
+    const active =
+      currentLessonIdRef.current === lessonId || currentLessonId === lessonId;
+    if (active && isStarted) {
+      await updateLessonProgress(
+        lessonId,
+        completedSentencesRef.current,
+        ipaDataRef.current
+      );
+      await loadLessonsList();
+    }
+  }, [currentLessonId, isStarted]);
 
   const handleLoadLesson = async (id: string) => {
     try {
@@ -140,7 +186,8 @@ export function useLessonLogic(
         ipaDataRef.current = loadedIpa;
         setIpaData(loadedIpa);
         setCompletedSentences(lesson.completedSentences || {});
-        setIsStarted(!!lesson.audioFile);
+        const hasTranscript = !!(lesson.transcriptText && lesson.transcriptText.trim());
+        setIsStarted(!!lesson.audioFile || hasTranscript);
         setAppMode('normal');
         
         lesson.lastAccessed = Date.now();
@@ -345,7 +392,28 @@ export function useLessonLogic(
     setIsStarted(true);
   };
 
+  const expandSidebarForItem = useCallback((kind: 'audio' | 'flashcard', language: string) => {
+    const isDe = language === 'de';
+    setExpandedSections((prev) => {
+      if (kind === 'audio') {
+        return {
+          ...prev,
+          lessons: true,
+          'audio-en': !isDe,
+          'audio-de': isDe,
+        };
+      }
+      return {
+        ...prev,
+        decks: true,
+        'flashcard-en': !isDe,
+        'flashcard-de': isDe,
+      };
+    });
+  }, []);
+
   const handleModeChange = async (mode: AppMode) => {
+    appModeRef.current = mode;
     setAppMode(mode);
   };
 
@@ -361,7 +429,7 @@ export function useLessonLogic(
     if (!text.trim()) return;
 
     const all = await getAllLessons();
-    const taken = all.map((l) => l.name);
+    const taken = all.filter((l) => l.type === 'flashcard').map((l) => l.name);
     const base = name.trim() || text.split('\n')[0].substring(0, 30) || 'Untitled deck';
     const finalName = uniquifyName(base, taken);
 
@@ -432,8 +500,10 @@ export function useLessonLogic(
     fetchIPA,
     handleStartLearning,
     handleModeChange,
+    expandSidebarForItem,
     handleTranscriptUpload,
     handleFlashcardUpload,
-    loadLessonsList
+    loadLessonsList,
+    prepareForLessonMediaClear
   };
 }

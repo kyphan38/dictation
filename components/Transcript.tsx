@@ -8,6 +8,7 @@ import { TranscriptSentence } from './TranscriptSentence';
 interface TranscriptProps {
   transcript: Sentence[];
   currentTime: number;
+  isPlaying: boolean;
   appMode: AppMode;
   hideCaptions?: boolean;
   onToggleHideCaptions?: () => void;
@@ -31,6 +32,7 @@ interface TranscriptProps {
 export function Transcript({
   transcript,
   currentTime,
+  isPlaying,
   appMode,
   hideCaptions,
   onToggleHideCaptions,
@@ -102,6 +104,7 @@ export function Transcript({
               index={index}
               isActive={isActive}
               isPast={isPast}
+              isPlaying={isPlaying}
               appMode={appMode}
               hideCaptions={!!hideCaptions && appMode === 'normal'}
               dictationInput={dictationInputs[sentence.id] || ''}

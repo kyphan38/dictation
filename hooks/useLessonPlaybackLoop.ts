@@ -1,5 +1,5 @@
 import { useEffect, type MutableRefObject, type RefObject } from 'react';
-import type { AppMode, Sentence } from '@/types';
+import type { AppMode, LoopMode, Sentence } from '@/types';
 
 type RefBool = MutableRefObject<boolean>;
 type RefMode = MutableRefObject<AppMode>;
@@ -15,7 +15,7 @@ export function useLessonPlaybackLoop(
   audioRef: RefObject<HTMLAudioElement | null>,
   loopTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
   isLoopDelayingRef: RefBool,
-  loopModeRef: MutableRefObject<'none' | 'all' | 'one'>,
+  loopModeRef: MutableRefObject<LoopMode>,
   appModeRef: RefMode,
   completedSentencesRef: RefCompleted,
   activeSentenceRef: MutableRefObject<Sentence | null>
@@ -51,7 +51,10 @@ export function useLessonPlaybackLoop(
                   isLoopDelayingRef.current = false;
                 }, 500);
               }
-            } else if ((appModeRef.current === 'dictation' || appModeRef.current === 'shadowing') && !isCompleted) {
+            } else if (appModeRef.current === 'dictation' && !isCompleted) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = activeSentenceRef.current.end - 0.05;
+            } else if (appModeRef.current === 'shadowing') {
               audioRef.current.pause();
               audioRef.current.currentTime = activeSentenceRef.current.end - 0.05;
             }

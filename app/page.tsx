@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AUTH_USERNAME, AUTH_PASSWORD, STORAGE_AUTH_KEY } from '@/constants';
 import { normalizeDictationTarget } from '@/lib/utils';
-import { clearLessonMedia } from '@/lib/db';
 import { AuthScreen } from '@/components/Auth';
 import { Sidebar } from '@/components/Sidebar';
 import { NewLessonModal } from '@/components/NewLessonModal';
@@ -74,10 +73,24 @@ export default function NodaApp() {
     appModeRef, completedSentencesRef, transcript,
     handleLoadLesson, handleNewLesson, handleRenameLesson, handleDeletePermanently,
     handleModeChange,
-    loadLessonsList, fetchIPA
+    expandSidebarForItem,
+    loadLessonsList, fetchIPA, prepareForLessonMediaClear
   } = useLessonLogic(audioFile, setAudioFile, setAudioURL, recognitionLang, setRecognitionLang);
 
-  const getTakenLessonNames = useCallback(() => lessonsList.map((l) => l.name), [lessonsList]);
+  const getTakenAudioLessonNames = useCallback(
+    () =>
+      lessonsList
+        .filter((l) => l.kind === 'audio' && !l.isTrashed)
+        .map((l) => l.name),
+    [lessonsList]
+  );
+  const getTakenFlashcardDeckNames = useCallback(
+    () =>
+      lessonsList
+        .filter((l) => l.kind === 'flashcard' && !l.isTrashed)
+        .map((l) => l.name),
+    [lessonsList]
+  );
 
   const { handleLessonCreated, handleDeckCreated } = useLessonCreateFlow(
     setSelectedItem,
@@ -86,7 +99,9 @@ export default function NodaApp() {
     setUploadMode,
     setToast,
     fetchIPA,
-    getTakenLessonNames
+    getTakenAudioLessonNames,
+    getTakenFlashcardDeckNames,
+    expandSidebarForItem
   );
 
   const handleNewLessonWrapper = () => {
@@ -109,6 +124,7 @@ export default function NodaApp() {
   };
 
   const handleItemSelect = (item: LessonItem | DeckItem) => {
+    expandSidebarForItem(item.type === 'lesson' ? 'audio' : 'flashcard', item.language);
     setSelectedItem({
       id: item.id,
       type: item.type,
@@ -127,6 +143,28 @@ export default function NodaApp() {
   useEffect(() => {
     setHideCaptions(false);
   }, [selectedItem?.id]);
+
+  useEffect(() => {
+    if (loopTimeoutRef.current) {
+      clearTimeout(loopTimeoutRef.current);
+      loopTimeoutRef.current = null;
+    }
+    isLoopDelayingRef.current = false;
+  }, [appMode]);
+
+  useEffect(() => {
+    const id = selectedItem?.id;
+    if (!id) return;
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-sidebar-item="${id}"]`)?.scrollIntoView({
+          block: 'nearest',
+          behavior: 'smooth',
+        });
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [selectedItem?.id, lessonsList]);
 
   useHeaderItemMenuClickOutside(
     headerItemMenuOpen,
@@ -160,6 +198,31 @@ export default function NodaApp() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const lastScrolledIndexRef = useRef<number>(-1);
 
+  /** Dictation/shadowing pause at sentence end leaves currentTime on the boundary; play() would be immediately paused again by the rAF loop unless we seek back first. */
+  const togglePlayPauseLesson = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const mode = appModeRef.current;
+    if (
+      audio.paused &&
+      (mode === 'shadowing' || mode === 'dictation') &&
+      activeSentenceRef.current
+    ) {
+      const s = activeSentenceRef.current;
+      if (audio.currentTime >= s.end - 0.08) {
+        audio.currentTime = s.start;
+        setCurrentTime(s.start);
+        lastScrolledIndexRef.current = -1;
+        if (loopTimeoutRef.current) {
+          clearTimeout(loopTimeoutRef.current);
+          loopTimeoutRef.current = null;
+        }
+        isLoopDelayingRef.current = false;
+      }
+    }
+    togglePlayPause();
+  }, [togglePlayPause, setCurrentTime, audioRef, appModeRef, activeSentenceRef, loopTimeoutRef, isLoopDelayingRef]);
+
   const {
     showCleanupModal,
     setShowCleanupModal,
@@ -182,7 +245,7 @@ export default function NodaApp() {
     appMode,
     selectedItem?.type === 'lesson' ? () => setHideCaptions((v) => !v) : undefined,
     handleModeChange,
-    togglePlayPause,
+    togglePlayPauseLesson,
     toggleLoopMode,
     loopTimeoutRef,
     isLoopDelayingRef,
@@ -402,24 +465,29 @@ export default function NodaApp() {
             )}
 
             {uploadMode === 'lesson' && (
-              <NewLessonModal onClose={closeUploadModal} onSubmit={handleLessonCreated} isGeneratingIPA={isGeneratingIPA} />
+              <NewLessonModal
+                onClose={closeUploadModal}
+                onSubmit={handleLessonCreated}
+                isGeneratingIPA={isGeneratingIPA}
+                getTakenAudioLessonNames={getTakenAudioLessonNames}
+              />
             )}
 
             {uploadMode === 'deck' && (
-              <NewDeckModal onClose={closeUploadModal} onSubmit={handleDeckCreated} />
+              <NewDeckModal
+                onClose={closeUploadModal}
+                onSubmit={handleDeckCreated}
+                getTakenFlashcardDeckNames={getTakenFlashcardDeckNames}
+              />
             )}
 
-            {audioURL && (
+            {(audioURL || selectedItem?.type === 'lesson') && (
               <audio
                 ref={audioRef}
-                src={audioURL}
-                loop={loopMode === 'all'}
+                src={audioURL || undefined}
+                loop={false}
                 onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                onEnded={() => {
-                  if (loopMode !== 'all') {
-                    setIsPlaying(false);
-                  }
-                }}
+                onEnded={() => setIsPlaying(false)}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
               />
@@ -436,7 +504,7 @@ export default function NodaApp() {
                   playbackRate={playbackRate}
                   loopMode={loopMode}
                   isGeneratingIPA={isGeneratingIPA}
-                  onPlayPause={togglePlayPause}
+                  onPlayPause={togglePlayPauseLesson}
                   onSeek={handleSeek}
                   onSpeedChange={changeSpeed}
                   onLoopModeChange={toggleLoopMode}
@@ -481,8 +549,16 @@ export default function NodaApp() {
           lessonId={lessonToDelete}
           onCancel={() => setLessonToDelete(null)}
           onConfirmDelete={async (id) => {
-            await handleDeletePermanently(id);
-            if (selectedItem?.id === id) handleNewLessonWrapper();
+            try {
+              await handleDeletePermanently(id);
+              if (selectedItem?.id === id) handleNewLessonWrapper();
+            } catch {
+              setToast({
+                message: 'Could not delete this item. IndexedDB may be unavailable (e.g. private browsing).',
+                type: 'error',
+              });
+              setLessonToDelete(null);
+            }
           }}
         />
       )}
@@ -497,20 +573,25 @@ export default function NodaApp() {
                 const id = selectedItem?.id;
                 if (!id || selectedItem?.type !== 'lesson') return;
                 setShowCleanupModal(false);
-                if (audioURL) {
-                  URL.revokeObjectURL(audioURL);
+                try {
+                  if (audioURL) {
+                    URL.revokeObjectURL(audioURL);
+                  }
+                  setAudioURL(null);
+                  setAudioFile(null);
+                  setIsPlaying(false);
+                  await prepareForLessonMediaClear(id);
+                  await handleDeletePermanently(id);
+                  // #region agent log
+                  fetch('http://127.0.0.1:7303/ingest/e06af307-892f-439f-a0fc-7ef70f1b69d6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'753b75'},body:JSON.stringify({sessionId:'753b75',location:'page.tsx:onRemoveAudio:afterDelete',message:'lesson removed after cleanup confirm',data:{id},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+                  // #endregion
+                  handleNewLessonWrapper();
+                } catch {
+                  setToast({
+                    message: 'Could not remove this lesson. IndexedDB may be unavailable (e.g. private browsing).',
+                    type: 'error',
+                  });
                 }
-                setAudioURL(null);
-                setAudioFile(null);
-                setIsPlaying(false);
-                await clearLessonMedia(id);
-                await handleLoadLesson(id);
-                await loadLessonsList();
-                setSelectedItem((prev) => {
-                  if (!prev || prev.id !== id || prev.type !== 'lesson') return prev;
-                  const d = prev.data as LessonItem;
-                  return { ...prev, data: { ...d, hasAudio: false } };
-                });
               }
             : undefined
         }

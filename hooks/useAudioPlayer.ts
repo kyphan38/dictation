@@ -65,7 +65,7 @@ export function useAudioPlayer() {
   };
 
   const toggleLoopMode = () => {
-    setLoopMode(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none');
+    setLoopMode((prev) => (prev === 'none' ? 'one' : 'none'));
   };
 
   return {

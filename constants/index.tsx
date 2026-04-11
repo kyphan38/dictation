@@ -35,9 +35,8 @@ export const LEARNING_MODES = [
 
 // Loop modes (UI display)
 export const LOOP_MODE_LABELS: Record<string, string> = {
-  'none': 'Loop',
-  'all': 'Loop All',
-  'one': 'Loop One',
+  none: 'Loop',
+  one: 'Loop one',
 };
 
 // Timing

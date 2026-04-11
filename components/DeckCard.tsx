@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreVertical, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
 import { DeckItem } from '@/types';
 
@@ -24,6 +25,8 @@ export function DeckCard({
   const [isRenaming, setIsRenaming] = useState(false);
   const [editName, setEditName] = useState(deck.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
 
   useEffect(() => {
     if (isRenaming && inputRef.current) {
@@ -35,6 +38,41 @@ export function DeckCard({
     setEditName(deck.name);
   }, [deck.name]);
 
+  const menuOpen = activeMenu === deck.id;
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuBtnRef.current) {
+      setMenuPos(null);
+      return;
+    }
+    const update = () => {
+      const el = menuBtnRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (menuBtnRef.current?.contains(t)) return;
+      const panel = document.getElementById(`deck-card-menu-${deck.id}`);
+      if (panel?.contains(t)) return;
+      setActiveMenu(null);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [menuOpen, deck.id, setActiveMenu]);
+
   const handleRenameSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (editName.trim() && editName !== deck.name && onRenameLesson) {
@@ -45,11 +83,11 @@ export function DeckCard({
     setIsRenaming(false);
   };
 
-  const menuOpen = activeMenu === deck.id;
   const kebabAlwaysVisible = menuOpen || selectedItemId === deck.id;
 
   return (
     <div
+      data-sidebar-item={deck.id}
       onClick={() => {
         if (!isRenaming) onItemSelect(deck);
       }}
@@ -95,6 +133,7 @@ export function DeckCard({
             </span>
             <div className="relative shrink-0">
               <button
+                ref={menuBtnRef}
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -111,32 +150,41 @@ export function DeckCard({
               >
                 <MoreVertical size={14} />
               </button>
-              {activeMenu === deck.id && (
-                <div className="absolute right-0 top-full mt-0.5 w-36 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsRenaming(true);
-                      setActiveMenu(null);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center gap-2 transition-colors"
+              {menuOpen &&
+                menuPos &&
+                createPortal(
+                  <div
+                    id={`deck-card-menu-${deck.id}`}
+                    role="menu"
+                    className="fixed w-36 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[210] py-1 overflow-hidden"
+                    style={{ top: menuPos.top, right: menuPos.right }}
+                    onMouseDown={(e) => e.stopPropagation()}
                   >
-                    <Edit2 size={14} /> Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveMenu(null);
-                      onDeleteLesson(deck.id);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
-                  >
-                    <Trash2 size={14} /> Delete
-                  </button>
-                </div>
-              )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsRenaming(true);
+                        setActiveMenu(null);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center gap-2 transition-colors"
+                    >
+                      <Edit2 size={14} /> Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenu(null);
+                        onDeleteLesson(deck.id);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>,
+                  document.body
+                )}
             </div>
           </>
         )}

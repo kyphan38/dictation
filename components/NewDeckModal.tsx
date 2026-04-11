@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Layers, Upload } from 'lucide-react';
+import { isLessonNameTaken } from '@/lib/utils';
 
 export interface DeckData {
   name: string;
@@ -10,14 +11,16 @@ export interface DeckData {
 interface NewDeckModalProps {
   onClose: () => void;
   onSubmit: (data: DeckData) => void;
+  getTakenFlashcardDeckNames: () => string[];
 }
 
-export function NewDeckModal({ onClose, onSubmit }: NewDeckModalProps) {
+export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: NewDeckModalProps) {
   const [deckName, setDeckName] = useState('');
   const [language, setLanguage] = useState<'en' | 'de'>('de');
   const [content, setContent] = useState('');
   const [cardCount, setCardCount] = useState(0);
   const [dropActive, setDropActive] = useState(false);
+  const [uploadedFileNameConflict, setUploadedFileNameConflict] = useState<string | null>(null);
 
   useEffect(() => {
     const lines = content.split('\n').filter(l => l.trim().length > 0);
@@ -32,19 +35,32 @@ export function NewDeckModal({ onClose, onSubmit }: NewDeckModalProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const ingestTextFile = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setContent(text);
-      setDeckName((n) => n || file.name.replace(/\.[^/.]+$/, ''));
-    };
-    reader.readAsText(file);
-  }, []);
+  const ingestTextFile = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        const stem = file.name.replace(/\.[^/.]+$/, '');
+        const taken = getTakenFlashcardDeckNames();
+        if (isLessonNameTaken(stem, taken)) {
+          setUploadedFileNameConflict(
+            `A deck named "${stem}" already exists. Use another file or type a different deck name above.`
+          );
+          return;
+        }
+        setUploadedFileNameConflict(null);
+        setContent(text);
+        setDeckName(stem);
+      };
+      reader.readAsText(file);
+    },
+    [getTakenFlashcardDeckNames]
+  );
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) ingestTextFile(file);
+    e.target.value = '';
   };
 
   const handleTextareaDrop = (e: React.DragEvent) => {
@@ -82,7 +98,10 @@ export function NewDeckModal({ onClose, onSubmit }: NewDeckModalProps) {
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
               placeholder="Deck name (e.g., German Verbs A1)"
               value={deckName}
-              onChange={(e) => setDeckName(e.target.value)}
+              onChange={(e) => {
+                setDeckName(e.target.value);
+                setUploadedFileNameConflict(null);
+              }}
             />
           </div>
 
@@ -122,6 +141,11 @@ export function NewDeckModal({ onClose, onSubmit }: NewDeckModalProps) {
                 onChange={(e) => setContent(e.target.value)}
               />
             </div>
+            {uploadedFileNameConflict && (
+              <p className="text-sm text-amber-400 mt-2" role="alert">
+                {uploadedFileNameConflict}
+              </p>
+            )}
             <p className="text-xs text-gray-500 mt-2">Drop a .txt file onto the box above to import lines.</p>
 
             <div className="flex items-center justify-between mt-3">

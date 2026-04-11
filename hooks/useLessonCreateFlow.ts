@@ -20,7 +20,9 @@ export function useLessonCreateFlow(
   setUploadMode: (m: 'idle' | 'lesson' | 'deck') => void,
   setToast: SetToast,
   fetchIPA: FetchIPA,
-  getTakenNames: () => string[]
+  getTakenAudioLessonNames: () => string[],
+  getTakenFlashcardDeckNames: () => string[],
+  expandSidebarForItem: (kind: 'audio' | 'flashcard', language: string) => void
 ) {
   const handleLessonCreated = useCallback(
     async (data: {
@@ -39,7 +41,7 @@ export function useLessonCreateFlow(
         const sentences = parseTranscript(text);
         const lessonId = Date.now().toString();
         const baseName = data.name.trim() || 'Untitled lesson';
-        const uniqueName = uniquifyName(baseName, getTakenNames());
+        const uniqueName = uniquifyName(baseName, getTakenAudioLessonNames());
 
         const newLesson = {
           id: lessonId,
@@ -72,6 +74,7 @@ export function useLessonCreateFlow(
           type: 'lesson',
           data: lessonItem,
         });
+        expandSidebarForItem('audio', data.language);
 
         await handleLoadLesson(lessonId);
         await handleModeChange('normal');
@@ -79,7 +82,6 @@ export function useLessonCreateFlow(
         if (data.generateIpa && sentences.length > 0) {
           ipaOk = await fetchIPA(sentences, data.language);
         }
-        setUploadMode('idle');
         if (!ipaOk) {
           setToast({
             message:
@@ -91,9 +93,20 @@ export function useLessonCreateFlow(
         }
       } catch {
         setToast({ message: 'Could not create lesson.', type: 'error' });
+      } finally {
+        setUploadMode('idle');
       }
     },
-    [setSelectedItem, handleLoadLesson, handleModeChange, setUploadMode, setToast, fetchIPA, getTakenNames]
+    [
+      setSelectedItem,
+      handleLoadLesson,
+      handleModeChange,
+      setUploadMode,
+      setToast,
+      fetchIPA,
+      getTakenAudioLessonNames,
+      expandSidebarForItem,
+    ]
   );
 
   const handleDeckCreated = useCallback(
@@ -106,7 +119,7 @@ export function useLessonCreateFlow(
 
         const lessonId = Date.now().toString();
         const baseName = deckData.name.trim() || 'Untitled deck';
-        const uniqueName = uniquifyName(baseName, getTakenNames());
+        const uniqueName = uniquifyName(baseName, getTakenFlashcardDeckNames());
 
         const newLesson = {
           id: lessonId,
@@ -144,15 +157,17 @@ export function useLessonCreateFlow(
           type: 'deck',
           data: deckItem,
         });
+        expandSidebarForItem('flashcard', deckData.language);
 
         await handleLoadLesson(lessonId);
-        setUploadMode('idle');
         setToast({ message: 'Deck created.', type: 'success' });
       } catch {
         setToast({ message: 'Could not create deck.', type: 'error' });
+      } finally {
+        setUploadMode('idle');
       }
     },
-    [setSelectedItem, handleLoadLesson, setUploadMode, setToast, getTakenNames]
+    [setSelectedItem, handleLoadLesson, setUploadMode, setToast, getTakenFlashcardDeckNames, expandSidebarForItem]
   );
 
   return { handleLessonCreated, handleDeckCreated };
