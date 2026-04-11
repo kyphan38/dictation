@@ -854,7 +854,7 @@ export default function NodaApp() {
                 if (audioRef.current) {
                   audioRef.current.currentTime = time;
                   setCurrentTime(time);
-                  lastScrolledIndexRef.current = -1;
+                  lastScrolledIndexRef.current = -1; // Force scroll on seek
                   if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
                   isLoopDelayingRef.current = false;
                 }
