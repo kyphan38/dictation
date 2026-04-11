@@ -1,0 +1,23 @@
+Plan: Clean Up IPA Debug and Add Loading Indicator
+TL;DR: Remove console error logs from IPA generation and add a loading spinner in the Create Lesson modal during IPA auto-generation.
+
+Steps
+
+Remove the two console.error statements in useLessonLogic.ts (lines 195 and 265) related to IPA API key missing and generation failure.
+Modify NewLessonModal.tsx to display a loading indicator (spinner and text) when the Auto-Generate IPA option is selected and lesson creation is in progress. Integrate with the existing isGeneratingIPA state from useLessonLogic hook.
+Relevant files
+
+useLessonLogic.ts — Remove console.error logs in fetchIPA function
+NewLessonModal.tsx — Add loading UI elements during IPA generation
+Verification
+
+Run the application and create a new lesson with Auto-Generate IPA enabled; verify no console errors appear and a loading indicator shows in the modal during IPA generation.
+Test error scenarios (e.g., missing API key) to ensure graceful handling without console logs.
+Decisions
+
+Remove only the specified console.error statements, as they are the instrumentation debug code mentioned.
+For the loading indicator, reuse the existing isGeneratingIPA boolean from useLessonLogic and display a spinner with text like "Generating IPA..." in the modal.
+Scope: Only affect the NewLessonModal for Create Lesson; UploadPanel already has loading implemented.
+Further Considerations
+
+Ensure the loading state doesn't interfere with modal closure or other interactions.
