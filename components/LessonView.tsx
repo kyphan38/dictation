@@ -12,19 +12,16 @@ import {
   SpokenResult,
   DictationInputs,
   CompletedSentences,
-  IPAData,
 } from '@/types';
 
 interface LessonViewProps {
   lesson: LessonItem;
   mode: AppMode;
-  // Player props
   isPlaying: boolean;
   duration: number;
   currentTime: number;
   playbackRate: number;
   loopMode: LoopMode;
-  isGeneratingIPA: boolean;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSpeedChange: () => void;
@@ -32,14 +29,12 @@ interface LessonViewProps {
   onResetDictation?: () => void;
   hideCaptions?: boolean;
   onToggleHideCaptions?: () => void;
-  // Transcript props
   transcript: Sentence[];
   dictationInputs: DictationInputs;
   completedSentences: CompletedSentences;
   isRecording: number | null;
   spokenResults: Record<number, SpokenResult>;
   recognitionErrors: Record<number, string>;
-  ipaData: IPAData;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   onSentenceClick: (sentence: Sentence) => void;
   onDictationChange: (sentence: Sentence, value: string) => void;
@@ -51,14 +46,13 @@ interface LessonViewProps {
 }
 
 export function LessonView({
-  lesson,
+  lesson: _lesson,
   mode,
   isPlaying,
   duration,
   currentTime,
   playbackRate,
   loopMode,
-  isGeneratingIPA,
   onPlayPause,
   onSeek,
   onSpeedChange,
@@ -69,7 +63,6 @@ export function LessonView({
   isRecording,
   spokenResults,
   recognitionErrors,
-  ipaData,
   scrollContainerRef,
   onSentenceClick,
   onDictationChange,
@@ -90,7 +83,6 @@ export function LessonView({
         currentTime={currentTime}
         playbackRate={playbackRate}
         loopMode={loopMode}
-        isGeneratingIPA={isGeneratingIPA}
         onPlayPause={onPlayPause}
         onSeek={onSeek}
         onSpeedChange={onSpeedChange}
@@ -110,7 +102,6 @@ export function LessonView({
         isRecording={isRecording}
         spokenResults={spokenResults}
         recognitionErrors={recognitionErrors}
-        ipaData={ipaData}
         scrollContainerRef={scrollContainerRef}
         onSentenceClick={onSentenceClick}
         onDictationChange={onDictationChange}

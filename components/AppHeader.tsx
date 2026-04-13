@@ -13,6 +13,8 @@ export type HeaderSelectedItem = {
 export interface AppHeaderProps {
   isSidebarOpen: boolean;
   onOpenSidebar: () => void;
+  /** When true, hide Normal/Dictation/Shadowing tabs (mobile decks-only UX). */
+  isMobile?: boolean;
   selectedItem: HeaderSelectedItem | null;
   appMode: AppMode;
   onModeChange: (mode: AppMode) => void | Promise<void>;
@@ -26,6 +28,7 @@ export interface AppHeaderProps {
 export function AppHeader({
   isSidebarOpen,
   onOpenSidebar,
+  isMobile = false,
   selectedItem,
   appMode,
   onModeChange,
@@ -54,7 +57,7 @@ export function AppHeader({
         </h1>
       </div>
 
-      {selectedItem?.type === 'lesson' && (
+      {selectedItem?.type === 'lesson' && !isMobile && (
         <div className="mode-tabs-container">
           <div className="mode-tabs" role="tablist" aria-label="Lesson mode">
             <button

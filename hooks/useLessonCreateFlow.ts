@@ -1,7 +1,7 @@
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import { parseTranscript, uniquifyName } from '@/lib/utils';
-import { saveLesson } from '@/lib/db';
-import type { AppMode, DeckItem, LessonItem, Sentence } from '@/types';
+import { saveLesson, type LessonRecord } from '@/lib/db';
+import type { AppMode, DeckItem, LessonItem } from '@/types';
 
 type SetToast = (t: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
 
@@ -11,27 +11,18 @@ type Selected = {
   data: LessonItem | DeckItem;
 };
 
-type FetchIPA = (sentencesToUse?: Sentence[], langOverride?: string) => boolean | Promise<boolean>;
-
 export function useLessonCreateFlow(
   setSelectedItem: Dispatch<SetStateAction<Selected | null>>,
   handleLoadLesson: (id: string) => Promise<void>,
   handleModeChange: (mode: AppMode) => void | Promise<void>,
   setUploadMode: (m: 'idle' | 'lesson' | 'deck') => void,
   setToast: SetToast,
-  fetchIPA: FetchIPA,
   getTakenAudioLessonNames: () => string[],
   getTakenFlashcardDeckNames: () => string[],
   expandSidebarForItem: (kind: 'audio' | 'flashcard', language: string) => void
 ) {
   const handleLessonCreated = useCallback(
-    async (data: {
-      name: string;
-      language: 'en' | 'de';
-      audioFile: File;
-      transcriptFile: File | null;
-      generateIpa: boolean;
-    }) => {
+    async (data: { name: string; language: 'en' | 'de'; audioFile: File; transcriptFile: File | null }) => {
       try {
         let text = '';
         if (data.transcriptFile) {
@@ -42,19 +33,20 @@ export function useLessonCreateFlow(
         const lessonId = Date.now().toString();
         const baseName = data.name.trim() || 'Untitled lesson';
         const uniqueName = uniquifyName(baseName, getTakenAudioLessonNames());
+        const now = Date.now();
 
-        const newLesson = {
+        const newLesson: LessonRecord = {
           id: lessonId,
-          type: 'audio' as const,
+          type: 'audio',
           name: uniqueName,
           language: data.language,
           audioFile: data.audioFile,
           transcriptText: text,
-          ipaData: {},
           completedSentences: {},
           totalSentences: sentences.length,
-          createdAt: Date.now(),
-          lastAccessed: Date.now(),
+          createdAt: now,
+          lastAccessed: now,
+          updatedAt: now,
         };
 
         await saveLesson(newLesson);
@@ -65,7 +57,6 @@ export function useLessonCreateFlow(
           language: data.language,
           progress: 0,
           hasAudio: true,
-          hasIpa: false,
           type: 'lesson',
         };
 
@@ -78,19 +69,7 @@ export function useLessonCreateFlow(
 
         await handleLoadLesson(lessonId);
         await handleModeChange('normal');
-        let ipaOk = true;
-        if (data.generateIpa && sentences.length > 0) {
-          ipaOk = await fetchIPA(sentences, data.language);
-        }
-        if (!ipaOk) {
-          setToast({
-            message:
-              'Lesson saved. IPA generation failed — set NEXT_PUBLIC_GEMINI_API_KEY, restart the dev server, and check the console.',
-            type: 'error',
-          });
-        } else {
-          setToast({ message: 'Lesson created.', type: 'success' });
-        }
+        setToast({ message: 'Lesson created.', type: 'success' });
       } catch {
         setToast({ message: 'Could not create lesson.', type: 'error' });
       } finally {
@@ -103,7 +82,6 @@ export function useLessonCreateFlow(
       handleModeChange,
       setUploadMode,
       setToast,
-      fetchIPA,
       getTakenAudioLessonNames,
       expandSidebarForItem,
     ]
@@ -120,18 +98,19 @@ export function useLessonCreateFlow(
         const lessonId = Date.now().toString();
         const baseName = deckData.name.trim() || 'Untitled deck';
         const uniqueName = uniquifyName(baseName, getTakenFlashcardDeckNames());
+        const now = Date.now();
 
-        const newLesson = {
+        const newLesson: LessonRecord = {
           id: lessonId,
-          type: 'flashcard' as const,
+          type: 'flashcard',
           name: uniqueName,
           language: deckData.language,
           transcriptText: '',
-          ipaData: {},
           completedSentences: {},
           totalSentences: lines.length,
-          createdAt: Date.now(),
-          lastAccessed: Date.now(),
+          createdAt: now,
+          lastAccessed: now,
+          updatedAt: now,
           flashcardData: {
             lines,
             ratings: {},

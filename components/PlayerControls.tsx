@@ -7,7 +7,6 @@ interface PlayerControlsProps {
   isPlaying: boolean;
   playbackRate: number;
   loopMode: LoopMode;
-  isGeneratingIPA: boolean;
   onPlayPause: () => void;
   onSpeedChange: () => void;
   onLoopModeChange: () => void;
@@ -17,7 +16,6 @@ export function PlayerControls({
   isPlaying,
   playbackRate,
   loopMode,
-  isGeneratingIPA,
   onPlayPause,
   onSpeedChange,
   onLoopModeChange,

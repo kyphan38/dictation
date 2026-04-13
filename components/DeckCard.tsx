@@ -7,7 +7,7 @@ interface DeckCardProps {
   deck: DeckItem;
   selectedItemId?: string;
   onItemSelect: (item: DeckItem) => void;
-  onDeleteLesson: (id: string) => void;
+  onTrashItem: (id: string) => void;
   onRenameLesson?: (id: string, newName: string) => void;
   onChangeLanguage?: (id: string, language: 'en' | 'de') => void | Promise<void>;
   activeMenu: string | null;
@@ -18,7 +18,7 @@ export function DeckCard({
   deck,
   selectedItemId,
   onItemSelect,
-  onDeleteLesson,
+  onTrashItem,
   onRenameLesson,
   onChangeLanguage,
   activeMenu,
@@ -194,7 +194,7 @@ export function DeckCard({
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveMenu(null);
-                        onDeleteLesson(deck.id);
+                        onTrashItem(deck.id);
                       }}
                       className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
                     >

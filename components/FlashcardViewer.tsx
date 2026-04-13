@@ -5,7 +5,7 @@ import { RotateCcw, Check, BadgeCheck } from 'lucide-react';
 import { useFlashcardEngine } from '@/hooks/useFlashcardEngine';
 import type { FlashcardRating } from '@/hooks/useFlashcardEngine';
 import { DeckItem } from '@/types';
-import { getLesson, saveLesson } from '@/lib/db';
+import { getLesson, saveLesson, bumpLessonUpdatedAt } from '@/lib/db';
 
 interface FlashcardViewerProps {
   deck: DeckItem;
@@ -61,6 +61,7 @@ export function FlashcardViewer({ deck, onComplete, onDeckUpdated }: FlashcardVi
             ...lesson.flashcardData,
             ratings: { ...lesson.flashcardData.ratings, [lineIndex]: rating },
           };
+          bumpLessonUpdatedAt(lesson);
           await saveLesson(lesson);
           onDeckUpdated?.();
         } catch {
@@ -95,6 +96,7 @@ export function FlashcardViewer({ deck, onComplete, onDeckUpdated }: FlashcardVi
         lines: baseLines,
       };
       lesson.totalSentences = baseLines.length;
+      bumpLessonUpdatedAt(lesson);
       await saveLesson(lesson);
       setLines([...baseLines]);
       onDeckUpdated?.();
@@ -118,6 +120,7 @@ export function FlashcardViewer({ deck, onComplete, onDeckUpdated }: FlashcardVi
         lines: nextLines,
       };
       lesson.totalSentences = nextLines.length;
+      bumpLessonUpdatedAt(lesson);
       await saveLesson(lesson);
       setLines(nextLines);
       setIsEditing(false);

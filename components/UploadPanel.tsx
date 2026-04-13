@@ -15,7 +15,6 @@ interface UploadPanelProps {
   setRecognitionLang: (lang: string) => void;
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
-  isGeneratingIPA: boolean;
   handleStartLearning: () => void;
   handleFlashcardUpload: (text: string, name: string) => void;
 }
@@ -32,7 +31,6 @@ export function UploadPanel({
   setRecognitionLang,
   appMode,
   setAppMode,
-  isGeneratingIPA,
   handleStartLearning,
   handleFlashcardUpload
 }: UploadPanelProps) {
@@ -143,18 +141,12 @@ export function UploadPanel({
              </div>
              
              <button 
-               disabled={!audioFile || !transcriptText || isGeneratingIPA}
+               disabled={!audioFile || !transcriptText}
                onClick={handleStartLearning}
                className="w-full max-w-md py-4 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold text-lg rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 active:scale-95"
              >
-               {isGeneratingIPA ? (
-                 <>
-                   <div className="w-6 h-6 border-4 border-gray-950 border-t-transparent rounded-full animate-spin"></div>
-                   Generating IPA & Starting...
-                 </>
-               ) : (
-                 <>{currentLessonId ? "Restore Lesson & Continue" : "Start Learning"} <Play className="w-6 h-6 fill-current" /></>
-               )}
+               {currentLessonId ? 'Restore Lesson & Continue' : 'Start Learning'}{' '}
+               <Play className="w-6 h-6 fill-current" />
              </button>
           </div>
         </div>

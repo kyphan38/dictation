@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { AUTH_USERNAME, AUTH_PASSWORD, STORAGE_AUTH_KEY } from '@/constants';
+import { AUTH_USERNAME_HASH, AUTH_PASSWORD_HASH, STORAGE_AUTH_KEY } from '@/constants';
 import { normalizeDictationTarget } from '@/lib/utils';
+import { trashLesson, restoreLesson } from '@/lib/db';
+import { pushToGist, pullFromGist, getLastSyncTime } from '@/lib/gistSync';
 import { AuthScreen } from '@/components/Auth';
-import { Sidebar } from '@/components/Sidebar';
+import { Sidebar, type GistSyncUiState } from '@/components/Sidebar';
 import { NewLessonModal } from '@/components/NewLessonModal';
 import { NewDeckModal } from '@/components/NewDeckModal';
 import { CleanupModal } from '@/components/CleanupModal';
 import { AppHeader } from '@/components/AppHeader';
-import { MobileUnsupported } from '@/components/MobileUnsupported';
 import { DeleteLessonModal } from '@/components/DeleteLessonModal';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
@@ -26,6 +27,27 @@ import { LessonView } from '@/components/LessonView';
 import { FlashcardViewer } from '@/components/FlashcardViewer';
 import { WelcomeScreen } from '@/components/WelcomeScreen';
 import { Toast } from '@/components/Toast';
+
+async function sha256HexUtf8(value: string): Promise<string> {
+  const buf = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function formatGistLastSync(d: Date | null): string | null {
+  if (!d) return null;
+  const diffS = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diffS < 15) return 'Last synced: just now';
+  if (diffS < 3600) return `Last synced: ${Math.floor(diffS / 60)}m ago`;
+  if (diffS < 86400) return `Last synced: ${Math.floor(diffS / 3600)}h ago`;
+  return `Last synced: ${d.toLocaleString()}`;
+}
+
+function pushItemHistoryState(id: string, type: 'lesson' | 'deck') {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('item') === id) return;
+  window.history.pushState({ itemId: id, itemType: type }, '', `?item=${encodeURIComponent(id)}`);
+}
 
 export default function NodaApp() {
   const [isMounted, setIsMounted] = useState(false);
@@ -44,11 +66,18 @@ export default function NodaApp() {
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const [hideCaptions, setHideCaptions] = useState(false);
 
+  const [gistSyncState, setGistSyncState] = useState<GistSyncUiState>('idle');
+  const [gistLastSyncLabel, setGistLastSyncLabel] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? formatGistLastSync(getLastSyncTime()) : null
+  );
+
   const [selectedItem, setSelectedItem] = useState<{
     id: string;
     type: 'lesson' | 'deck';
     data: LessonItem | DeckItem;
   } | null>(null);
+
+  const urlHydratedRef = useRef(false);
 
   const {
     audioFile, setAudioFile, audioURL, setAudioURL,
@@ -66,16 +95,21 @@ export default function NodaApp() {
   const {
     appMode,
     dictationInputs, setDictationInputs, completedSentences, setCompletedSentences,
-    isStarted, isGeneratingIPA, ipaData,
+    isStarted,
     lessonsList, isListLoading,
     isSidebarOpen, setIsSidebarOpen, lessonToDelete, setLessonToDelete,
     expandedSections, setExpandedSections,
     appModeRef, completedSentencesRef, transcript,
-    handleLoadLesson, handleNewLesson, handleRenameLesson, handleDeletePermanently,
+    handleLoadLesson, bumpLessonLoadGeneration, handleNewLesson, handleRenameLesson, handleDeletePermanently,
     handleModeChange,
     expandSidebarForItem,
-    loadLessonsList, fetchIPA, prepareForLessonMediaClear, handleUpdateItemLanguage
+    loadLessonsList, prepareForLessonMediaClear, handleUpdateItemLanguage
   } = useLessonLogic(audioFile, setAudioFile, setAudioURL, recognitionLang, setRecognitionLang);
+
+  const lessonsListRef = useRef<typeof lessonsList>([]);
+  useEffect(() => {
+    lessonsListRef.current = lessonsList;
+  });
 
   const getTakenAudioLessonNames = useCallback(
     () =>
@@ -94,13 +128,7 @@ export default function NodaApp() {
 
   const onChangeItemLanguage = useCallback(
     async (id: string, lang: 'en' | 'de') => {
-      const { ipaNote } = await handleUpdateItemLanguage(id, lang);
-      if (ipaNote) {
-        setToast({
-          type: 'info',
-          message: 'Language changed. IPA data remains from the original language.',
-        });
-      }
+      await handleUpdateItemLanguage(id, lang);
       setSelectedItem((prev) => {
         if (!prev || prev.id !== id) return prev;
         if (prev.type === 'lesson') {
@@ -118,16 +146,15 @@ export default function NodaApp() {
     handleModeChange,
     setUploadMode,
     setToast,
-    fetchIPA,
     getTakenAudioLessonNames,
     getTakenFlashcardDeckNames,
     expandSidebarForItem
   );
 
-  const handleNewLessonWrapper = () => {
+  const handleNewLessonWrapper = useCallback(() => {
     handleNewLesson();
     setSelectedItem(null);
-  };
+  }, [handleNewLesson]);
 
   const openNewLessonModal = () => {
     handleNewLessonWrapper();
@@ -143,18 +170,128 @@ export default function NodaApp() {
     setUploadMode('idle');
   };
 
-  const handleItemSelect = (item: LessonItem | DeckItem) => {
-    expandSidebarForItem(item.type === 'lesson' ? 'audio' : 'flashcard', item.language);
-    setSelectedItem({
-      id: item.id,
-      type: item.type,
-      data: item
-    });
-    void handleLoadLesson(item.id);
-    if (item.type === 'lesson') {
+  const applySelectionFromRow = useCallback(
+    (
+      row: {
+        id: string;
+        name: string;
+        language: string;
+        kind: 'audio' | 'flashcard';
+        progress: number;
+        totalSentences: number;
+        hasAudio: boolean;
+      },
+      opts?: { pushHistory?: boolean }
+    ) => {
+      const pushHistory = opts?.pushHistory !== false;
+      if (row.kind === 'flashcard') {
+        const deck: DeckItem = {
+          id: row.id,
+          name: row.name,
+          language: row.language as 'en' | 'de' | 'mixed',
+          cardCount: row.totalSentences,
+          progress: row.progress,
+          type: 'deck',
+        };
+        expandSidebarForItem('flashcard', row.language);
+        setSelectedItem({ id: row.id, type: 'deck', data: deck });
+        void handleLoadLesson(row.id);
+        if (pushHistory) pushItemHistoryState(row.id, 'deck');
+        return;
+      }
+
+      const lesson: LessonItem = {
+        id: row.id,
+        name: row.name,
+        language: row.language as 'en' | 'de',
+        progress: row.progress,
+        hasAudio: row.hasAudio,
+        type: 'lesson',
+      };
+      expandSidebarForItem('audio', row.language);
+      setSelectedItem({ id: row.id, type: 'lesson', data: lesson });
+
+      if (viewport.isMobile) {
+        bumpLessonLoadGeneration();
+        setAudioFile(null);
+        setAudioURL(null);
+        setIsPlaying(false);
+        if (pushHistory) pushItemHistoryState(row.id, 'lesson');
+        return;
+      }
+
+      void handleLoadLesson(row.id);
       void handleModeChange('normal');
+      if (pushHistory) pushItemHistoryState(row.id, 'lesson');
+    },
+    [
+      bumpLessonLoadGeneration,
+      expandSidebarForItem,
+      handleLoadLesson,
+      handleModeChange,
+      setAudioFile,
+      setAudioURL,
+      setIsPlaying,
+      viewport.isMobile,
+    ]
+  );
+
+  const handleItemSelect = (item: LessonItem | DeckItem) => {
+    const row = lessonsList.find((l) => l.id === item.id);
+    if (!row || row.isTrashed) return;
+    applySelectionFromRow(row, { pushHistory: true });
+  };
+
+  const handleTrashItem = async (id: string) => {
+    try {
+      await trashLesson(id);
+      await loadLessonsList();
+      if (selectedItem?.id === id) {
+        handleNewLessonWrapper();
+      }
+    } catch {
+      setToast({ message: 'Could not move item to trash.', type: 'error' });
     }
   };
+
+  const handleRestoreItem = async (id: string) => {
+    try {
+      await restoreLesson(id);
+      await loadLessonsList();
+    } catch {
+      setToast({ message: 'Could not restore item.', type: 'error' });
+    }
+  };
+
+  const handleGistPush = async () => {
+    setGistSyncState('loading');
+    try {
+      await pushToGist();
+      setGistSyncState('success');
+      setGistLastSyncLabel(formatGistLastSync(getLastSyncTime()));
+      await loadLessonsList();
+    } catch {
+      setGistSyncState('error');
+    }
+  };
+
+  const handleGistPull = async () => {
+    setGistSyncState('loading');
+    try {
+      await pullFromGist();
+      setGistSyncState('success');
+      setGistLastSyncLabel(formatGistLastSync(getLastSyncTime()));
+      await loadLessonsList();
+    } catch {
+      setGistSyncState('error');
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioURL) URL.revokeObjectURL(audioURL);
+    };
+  }, [audioURL]);
 
   useEffect(() => {
     setHeaderItemMenuOpen(false);
@@ -170,6 +307,7 @@ export default function NodaApp() {
       loopTimeoutRef.current = null;
     }
     isLoopDelayingRef.current = false;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loopTimeoutRef/isLoopDelayingRef are stable refs
   }, [appMode]);
 
   useEffect(() => {
@@ -185,6 +323,43 @@ export default function NodaApp() {
     });
     return () => cancelAnimationFrame(raf);
   }, [selectedItem?.id, lessonsList]);
+
+  useEffect(() => {
+    if (isListLoading) return;
+    if (urlHydratedRef.current) return;
+    urlHydratedRef.current = true;
+    const id = new URLSearchParams(window.location.search).get('item');
+    if (!id) return;
+    const row = lessonsListRef.current.find((l) => l.id === id && !l.isTrashed);
+    if (!row) return;
+    applySelectionFromRow(row, { pushHistory: false });
+    window.history.replaceState(
+      { itemId: row.id, itemType: row.kind === 'flashcard' ? 'deck' : 'lesson' },
+      '',
+      `?item=${encodeURIComponent(row.id)}`
+    );
+  }, [isListLoading, lessonsList, applySelectionFromRow]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const st = window.history.state as { itemId?: string; itemType?: string } | null;
+      const hid = st?.itemId;
+      if (!hid) {
+        handleNewLessonWrapper();
+        setSelectedItem(null);
+        return;
+      }
+      const row = lessonsListRef.current.find((l) => l.id === hid && !l.isTrashed);
+      if (row) {
+        applySelectionFromRow(row, { pushHistory: false });
+      } else {
+        handleNewLessonWrapper();
+        setSelectedItem(null);
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [applySelectionFromRow, handleNewLessonWrapper]);
 
   useHeaderItemMenuClickOutside(
     headerItemMenuOpen,
@@ -218,7 +393,6 @@ export default function NodaApp() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const lastScrolledIndexRef = useRef<number>(-1);
 
-  /** Dictation/shadowing pause at sentence end leaves currentTime on the boundary; play() would be immediately paused again by the rAF loop unless we seek back first. */
   const togglePlayPauseLesson = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -260,10 +434,14 @@ export default function NodaApp() {
     return () => clearTimeout(timer);
   }, []);
 
+  const isMobileLessonBlocked = viewport.isMobile && selectedItem?.type === 'lesson';
+
   useGlobalPlaybackShortcuts(
-    selectedItem?.type,
+    isMobileLessonBlocked ? undefined : selectedItem?.type,
     appMode,
-    selectedItem?.type === 'lesson' ? () => setHideCaptions((v) => !v) : undefined,
+    selectedItem?.type === 'lesson' && !isMobileLessonBlocked
+      ? () => setHideCaptions((v) => !v)
+      : undefined,
     handleModeChange,
     togglePlayPauseLesson,
     toggleLoopMode,
@@ -395,14 +573,26 @@ export default function NodaApp() {
     completedSentencesRef.current = {};
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginUsername === AUTH_USERNAME && loginPassword === AUTH_PASSWORD) {
-      setIsAuthenticated(true);
-      localStorage.setItem(STORAGE_AUTH_KEY, 'true');
-      setLoginError('');
-    } else {
-      setLoginError('Invalid username or password');
+    const u = AUTH_USERNAME_HASH.trim();
+    const p = AUTH_PASSWORD_HASH.trim();
+    if (!u || !p) {
+      setLoginError('Auth is not configured (set NEXT_PUBLIC_AUTH_*_HASH).');
+      return;
+    }
+    try {
+      const uh = await sha256HexUtf8(loginUsername.trim());
+      const ph = await sha256HexUtf8(loginPassword);
+      if (uh.toLowerCase() === u.toLowerCase() && ph.toLowerCase() === p.toLowerCase()) {
+        setIsAuthenticated(true);
+        localStorage.setItem(STORAGE_AUTH_KEY, 'true');
+        setLoginError('');
+      } else {
+        setLoginError('Invalid username or password');
+      }
+    } catch {
+      setLoginError('Could not verify login.');
     }
   };
 
@@ -411,7 +601,11 @@ export default function NodaApp() {
     localStorage.removeItem(STORAGE_AUTH_KEY);
     setLoginUsername('');
     setLoginPassword('');
+    window.history.replaceState({}, '', window.location.pathname);
   };
+
+  const showLessonAudio =
+    selectedItem?.type === 'lesson' && !viewport.isMobile && !isMobileLessonBlocked;
 
   if (!isMounted) {
     return null;
@@ -419,10 +613,6 @@ export default function NodaApp() {
 
   if (!viewport.decided) {
     return null;
-  }
-
-  if (viewport.isMobile) {
-    return <MobileUnsupported />;
   }
 
   if (!isAuthenticated) {
@@ -451,13 +641,20 @@ export default function NodaApp() {
           onItemSelect={handleItemSelect}
           onNewLesson={openNewLessonModal}
           onNewDeck={openNewDeckModal}
+          onTrashItem={handleTrashItem}
+          onRestoreItem={handleRestoreItem}
+          onDeleteForever={setLessonToDelete}
           onRenameLesson={handleRenameLesson}
           onChangeLanguage={onChangeItemLanguage}
-          onDeleteLesson={(id) => setLessonToDelete(id)}
           onLogout={handleLogout}
           onToggleSection={(section, expanded) =>
             setExpandedSections((prev) => ({ ...prev, [section]: expanded }))
           }
+          isMobile={viewport.isMobile}
+          gistSyncState={gistSyncState}
+          gistLastSyncLabel={gistLastSyncLabel}
+          onGistPush={handleGistPush}
+          onGistPull={handleGistPull}
         />
       </div>
 
@@ -466,6 +663,7 @@ export default function NodaApp() {
           <AppHeader
             isSidebarOpen={isSidebarOpen}
             onOpenSidebar={() => setIsSidebarOpen(true)}
+            isMobile={viewport.isMobile}
             selectedItem={selectedItem}
             appMode={appMode}
             onModeChange={handleModeChange}
@@ -475,21 +673,24 @@ export default function NodaApp() {
             onRenameCurrent={handleHeaderRenameCurrent}
             onDeleteCurrent={() => {
               const id = selectedItem?.id;
-              if (id) setLessonToDelete(id);
+              if (id) void handleTrashItem(id);
               setHeaderItemMenuOpen(false);
             }}
           />
 
           <div className="flex-1 flex flex-col min-h-0">
             {!selectedItem && uploadMode === 'idle' && (
-              <WelcomeScreen onNewLesson={openNewLessonModal} onNewDeck={openNewDeckModal} />
+              <WelcomeScreen
+                onNewLesson={openNewLessonModal}
+                onNewDeck={openNewDeckModal}
+                hideAudio={viewport.isMobile}
+              />
             )}
 
             {uploadMode === 'lesson' && (
               <NewLessonModal
                 onClose={closeUploadModal}
                 onSubmit={handleLessonCreated}
-                isGeneratingIPA={isGeneratingIPA}
                 getTakenAudioLessonNames={getTakenAudioLessonNames}
               />
             )}
@@ -502,7 +703,7 @@ export default function NodaApp() {
               />
             )}
 
-            {(audioURL || selectedItem?.type === 'lesson') && (
+            {(audioURL || showLessonAudio) && (
               <audio
                 ref={audioRef}
                 src={audioURL || undefined}
@@ -514,7 +715,18 @@ export default function NodaApp() {
               />
             )}
 
-            {selectedItem?.type === 'lesson' && (
+            {isMobileLessonBlocked && (
+              <div className="flex flex-col flex-1 min-h-0 items-center justify-center p-8 text-center border border-gray-800 rounded-2xl bg-gray-900/40">
+                <p className="text-gray-300 text-lg font-medium max-w-md">
+                  Audio lessons are not available on mobile — use a larger screen.
+                </p>
+                <p className="text-gray-500 text-sm mt-4 max-w-sm">
+                  Flashcard decks work on this device. Create or open a deck from the sidebar.
+                </p>
+              </div>
+            )}
+
+            {selectedItem?.type === 'lesson' && !isMobileLessonBlocked && (
               <div key={appMode} className="mode-content-fade flex flex-col flex-1 min-h-0">
                 <LessonView
                   lesson={selectedItem.data as LessonItem}
@@ -524,7 +736,6 @@ export default function NodaApp() {
                   currentTime={currentTime}
                   playbackRate={playbackRate}
                   loopMode={loopMode}
-                  isGeneratingIPA={isGeneratingIPA}
                   onPlayPause={togglePlayPauseLesson}
                   onSeek={handleSeek}
                   onSpeedChange={changeSpeed}
@@ -535,7 +746,6 @@ export default function NodaApp() {
                   isRecording={isRecording}
                   spokenResults={spokenResults}
                   recognitionErrors={recognitionErrors}
-                  ipaData={ipaData}
                   scrollContainerRef={scrollContainerRef}
                   onSentenceClick={handleSentenceClick}
                   onDictationChange={handleDictationChange}

@@ -31,9 +31,11 @@ export function useAudioPlayer() {
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
+      setAudioURL((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(file);
+      });
       setAudioFile(file);
-      setAudioURL(url);
     }
   };
 

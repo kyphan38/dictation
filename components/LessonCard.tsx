@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
   CheckCircle2,
-  Wand2,
   MoreVertical,
   Edit2,
   Trash2,
@@ -16,7 +15,7 @@ interface LessonCardProps {
   lesson: LessonItem;
   selectedItemId?: string;
   onItemSelect: (item: LessonItem) => void;
-  onDeleteLesson: (id: string) => void;
+  onTrashItem: (id: string) => void;
   onRenameLesson?: (id: string, newName: string) => void;
   onChangeLanguage?: (id: string, language: 'en' | 'de') => void | Promise<void>;
   activeMenu: string | null;
@@ -27,7 +26,7 @@ export function LessonCard({
   lesson,
   selectedItemId,
   onItemSelect,
-  onDeleteLesson,
+  onTrashItem,
   onRenameLesson,
   onChangeLanguage,
   activeMenu,
@@ -154,11 +153,6 @@ export function LessonCard({
               />
               {lesson.progress}%
             </span>
-            {lesson.hasIpa && (
-              <span className="text-purple-400/90 shrink-0" title="IPA generated">
-                <Wand2 size={11} />
-              </span>
-            )}
             <div className="relative shrink-0">
               <button
                 ref={menuBtnRef}
@@ -217,7 +211,7 @@ export function LessonCard({
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveMenu(null);
-                        onDeleteLesson(lesson.id);
+                        onTrashItem(lesson.id);
                       }}
                       className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
                     >

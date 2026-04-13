@@ -21,7 +21,6 @@ export type RecognitionState = Record<number, string>;
 export type SpokenResults = Record<number, SpokenResult>;
 export type DictationInputs = Record<number, string>;
 export type CompletedSentences = Record<number, boolean>;
-export type IPAData = Record<number, string>;
 
 // Lesson summary from DB
 export type LessonSummary = {
@@ -34,9 +33,9 @@ export type LessonSummary = {
   totalSentences: number;
   /** Library section: audio lessons vs flashcard decks (independent of whether audio file is present). */
   kind: 'audio' | 'flashcard';
-  hasIpa: boolean;
   isTrashed: boolean;
   hasAudio: boolean;
+  trashedAt?: number;
 };
 
 // Lesson detail from DB
@@ -47,7 +46,6 @@ export type Lesson = {
   language: string;
   audioFile?: File;
   transcriptText: string;
-  ipaData: IPAData;
   completedSentences: CompletedSentences;
   totalSentences: number;
   createdAt: number;
@@ -63,7 +61,6 @@ export interface LessonItem {
   language: 'en' | 'de';
   progress: number; // 0-100
   hasAudio: boolean;
-  hasIpa: boolean;
   type: 'lesson'; // CRITICAL: để phân biệt với deck
 }
 
@@ -82,6 +79,7 @@ export interface TrashItem {
   name: string;
   originalType: 'lesson' | 'deck';
   language: string;
+  trashedAt?: number;
 }
 
 // Expanded sections state

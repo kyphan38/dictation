@@ -31,12 +31,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Repo → Settings → Secrets and variables → Actions. Required: AUTH_*_HASH (see scripts/generate-auth-hashes.js).
+      # Optional: GIST_* for sidebar Push/Pull (use a PAT with gist scope only).
       - name: Build
         run: npm run build
         env:
-          NEXT_PUBLIC_GEMINI_API_KEY: ${{ secrets.NEXT_PUBLIC_GEMINI_API_KEY }}
-          NEXT_PUBLIC_USERNAME: ${{ secrets.NEXT_PUBLIC_USERNAME }}
-          NEXT_PUBLIC_PASSWORD: ${{ secrets.NEXT_PUBLIC_PASSWORD }}
+          NEXT_PUBLIC_AUTH_USERNAME_HASH: ${{ secrets.NEXT_PUBLIC_AUTH_USERNAME_HASH }}
+          NEXT_PUBLIC_AUTH_PASSWORD_HASH: ${{ secrets.NEXT_PUBLIC_AUTH_PASSWORD_HASH }}
+          NEXT_PUBLIC_GIST_TOKEN: ${{ secrets.NEXT_PUBLIC_GIST_TOKEN }}
+          NEXT_PUBLIC_GIST_ID: ${{ secrets.NEXT_PUBLIC_GIST_ID }}
           BASE_PATH: /dictation
 
       - name: Check build output

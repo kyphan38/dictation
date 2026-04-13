@@ -1,4 +1,4 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { openDB, DBSchema, IDBPDatabase, type IDBPTransaction } from 'idb';
 
 export interface FlashcardData {
   lines: string[];
@@ -8,39 +8,71 @@ export interface FlashcardData {
   shuffledIndices: number[];
 }
 
+/** Full lesson row stored in IndexedDB (includes File blob when present). */
+export interface LessonRecord {
+  id: string;
+  type?: 'audio' | 'flashcard';
+  name: string;
+  language: string;
+  audioFile?: File | null;
+  transcriptText: string;
+  completedSentences: Record<number, boolean>;
+  totalSentences: number;
+  createdAt: number;
+  lastAccessed: number;
+  /** Bumped only on substantive edits; used for Gist merge (not lastAccessed). */
+  updatedAt: number;
+  isTrashed?: boolean;
+  trashedAt?: number;
+  flashcardData?: FlashcardData;
+}
+
 export interface LessonDB extends DBSchema {
   lessons: {
     key: string;
-    value: {
-      id: string;
-      type?: 'audio' | 'flashcard';
-      name: string;
-      language: string;
-      audioFile?: File | null;
-      transcriptText: string;
-      ipaData: Record<number, string>;
-      completedSentences: Record<number, boolean>;
-      totalSentences: number;
-      createdAt: number;
-      lastAccessed: number;
-      isTrashed?: boolean;
-      flashcardData?: FlashcardData;
-    };
-    indexes: { 'by-language': string, 'by-accessed': number };
+    value: LessonRecord;
+    indexes: { 'by-language': string; 'by-accessed': number };
   };
 }
 
 let dbPromise: Promise<IDBPDatabase<LessonDB>>;
 
+export const bumpLessonUpdatedAt = (lesson: LessonRecord) => {
+  lesson.updatedAt = Date.now();
+};
+
+async function migrateV3(
+  transaction: IDBPTransaction<LessonDB, ('lessons')[], 'versionchange'>
+): Promise<void> {
+  const store = transaction.objectStore('lessons');
+  let cursor = await store.openCursor();
+  while (cursor) {
+    const raw = cursor.value as Record<string, unknown> & Partial<LessonRecord>;
+    delete raw.ipaData;
+    const lesson = raw as unknown as LessonRecord;
+    if (lesson.isTrashed && lesson.trashedAt == null) {
+      lesson.trashedAt = lesson.lastAccessed ?? Date.now();
+    }
+    if (typeof lesson.updatedAt !== 'number') {
+      lesson.updatedAt = lesson.lastAccessed ?? lesson.createdAt ?? Date.now();
+    }
+    await cursor.update(lesson);
+    cursor = await cursor.continue();
+  }
+}
+
 export const initDB = () => {
   if (typeof window === 'undefined') return null;
   if (!dbPromise) {
-    dbPromise = openDB<LessonDB>('shadowing-app-db', 2, {
-      upgrade(db, oldVersion) {
+    dbPromise = openDB<LessonDB>('shadowing-app-db', 3, {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         if (oldVersion < 1) {
           const store = db.createObjectStore('lessons', { keyPath: 'id' });
           store.createIndex('by-language', 'language');
           store.createIndex('by-accessed', 'lastAccessed');
+        }
+        if (oldVersion < 3) {
+          return migrateV3(transaction);
         }
       },
     });
@@ -48,7 +80,7 @@ export const initDB = () => {
   return dbPromise;
 };
 
-export const saveLesson = async (lesson: any) => {
+export const saveLesson = async (lesson: LessonRecord) => {
   const db = await initDB();
   if (db) await db.put('lessons', lesson);
 };
@@ -59,10 +91,16 @@ export const getLesson = async (id: string) => {
   return null;
 };
 
-export const getAllLessons = async () => {
+export const getAllLessons = async (): Promise<LessonRecord[]> => {
   const db = await initDB();
   if (db) return db.getAllFromIndex('lessons', 'by-accessed');
   return [];
+};
+
+/** Active (non-trashed) lessons only — for Gist push. */
+export const getLessonsForGistExport = async (): Promise<LessonRecord[]> => {
+  const all = await getAllLessons();
+  return all.filter((l) => !l.isTrashed);
 };
 
 export const deleteLesson = async (id: string) => {
@@ -73,13 +111,25 @@ export const deleteLesson = async (id: string) => {
 
 export const trashLesson = async (id: string) => {
   const db = await initDB();
-  if (db) {
-    const lesson = await db.get('lessons', id);
-    if (lesson) {
-      lesson.audioFile = null;
-      lesson.isTrashed = true;
-      await db.put('lessons', lesson);
-    }
+  if (!db) return;
+  const lesson = await db.get('lessons', id);
+  if (lesson) {
+    lesson.isTrashed = true;
+    lesson.trashedAt = Date.now();
+    bumpLessonUpdatedAt(lesson);
+    await db.put('lessons', lesson);
+  }
+};
+
+export const restoreLesson = async (id: string) => {
+  const db = await initDB();
+  if (!db) return;
+  const lesson = await db.get('lessons', id);
+  if (lesson) {
+    lesson.isTrashed = false;
+    delete lesson.trashedAt;
+    lesson.updatedAt = Date.now();
+    await db.put('lessons', lesson);
   }
 };
 
@@ -94,18 +144,18 @@ export const clearLessonMedia = async (id: string) => {
   lesson.audioFile = null;
   lesson.type = 'audio';
   lesson.isTrashed = false;
+  bumpLessonUpdatedAt(lesson);
   await db.put('lessons', lesson);
 };
 
-export const updateLessonProgress = async (id: string, completedSentences: Record<number, boolean>, ipaData: Record<number, string>) => {
+export const updateLessonProgress = async (id: string, completedSentences: Record<number, boolean>) => {
   const db = await initDB();
-  if (db) {
-    const lesson = await db.get('lessons', id);
-    if (lesson) {
-      lesson.completedSentences = completedSentences;
-      lesson.ipaData = ipaData;
-      lesson.lastAccessed = Date.now();
-      await db.put('lessons', lesson);
-    }
+  if (!db) return;
+  const lesson = await db.get('lessons', id);
+  if (lesson) {
+    lesson.completedSentences = completedSentences;
+    lesson.lastAccessed = Date.now();
+    bumpLessonUpdatedAt(lesson);
+    await db.put('lessons', lesson);
   }
 };

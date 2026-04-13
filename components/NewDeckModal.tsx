@@ -102,6 +102,8 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
                 setDeckName(e.target.value);
                 setUploadedFileNameConflict(null);
               }}
+              autoCorrect="off"
+              autoCapitalize="off"
             />
           </div>
 
@@ -139,6 +141,8 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
                 rows={10}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
+                autoCorrect="off"
+                autoCapitalize="off"
               />
             </div>
             {uploadedFileNameConflict && (

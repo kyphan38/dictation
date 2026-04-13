@@ -1,6 +1,6 @@
 import React from 'react';
 import { Play, CheckCircle2, MicOff, Mic, FastForward, Wand2 } from 'lucide-react';
-import { Sentence, AppMode, SpokenResult, IPAData, CompletedSentences, RecognitionState } from '@/types';
+import { Sentence, AppMode, SpokenResult, CompletedSentences, RecognitionState } from '@/types';
 import { PRONUNCIATION_SCORE_THRESHOLD } from '@/constants';
 import { DictationControls } from './DictationControls';
 
@@ -18,7 +18,6 @@ interface TranscriptSentenceProps {
   isRecording: number | null;
   spokenResult?: SpokenResult;
   recognitionError?: string;
-  ipaData: IPAData;
   onSentenceClick: (sentence: Sentence) => void;
   onDictationChange: (sentence: Sentence, value: string) => void;
   onDictationKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, sentence: Sentence) => void;
@@ -41,7 +40,6 @@ export function TranscriptSentence({
   isRecording,
   spokenResult,
   recognitionError,
-  ipaData,
   onSentenceClick,
   onDictationChange,
   onDictationKeyDown,
@@ -92,7 +90,6 @@ export function TranscriptSentence({
             isPast={isPast}
             appMode={appMode}
             hideCaptions={hideCaptions}
-            ipaData={ipaData}
             spokenResult={spokenResult}
             recognitionError={recognitionError}
             isCompleted={isCompleted}
@@ -127,7 +124,6 @@ function NormalMode({
   isPast,
   appMode,
   hideCaptions,
-  ipaData,
   spokenResult,
   recognitionError,
   isCompleted,
@@ -139,7 +135,6 @@ function NormalMode({
   isPast: boolean;
   appMode: AppMode;
   hideCaptions?: boolean;
-  ipaData: IPAData;
   spokenResult?: SpokenResult;
   recognitionError?: string;
   isCompleted: boolean;
@@ -163,12 +158,6 @@ function NormalMode({
       >
         {sentence.text}
       </p>
-
-      {appMode === 'shadowing' && ipaData[sentence.id] && (
-        <p className="text-sm font-mono text-purple-400/80 tracking-wide">
-          /{ipaData[sentence.id]}/
-        </p>
-      )}
 
       {/* Error Message */}
       {recognitionError && (

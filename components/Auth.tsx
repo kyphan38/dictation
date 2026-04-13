@@ -48,6 +48,8 @@ export function AuthScreen({
                 className="block w-full pl-10 pr-3 py-2.5 border border-gray-700 rounded-lg bg-gray-950 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow"
                 placeholder="Enter username"
                 autoComplete="username"
+                autoCorrect="off"
+                autoCapitalize="none"
                 required
               />
             </div>
@@ -66,6 +68,8 @@ export function AuthScreen({
                 className="block w-full pl-10 pr-3 py-2.5 border border-gray-700 rounded-lg bg-gray-950 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-shadow"
                 placeholder="Enter password"
                 autoComplete="current-password"
+                autoCorrect="off"
+                autoCapitalize="none"
                 required
               />
             </div>

@@ -1,9 +1,141 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Music2, Layers, LogOut, PanelLeft } from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  Music2,
+  Layers,
+  LogOut,
+  PanelLeft,
+  ChevronDown,
+  ChevronRight,
+  RotateCcw,
+  Trash2,
+  MoreVertical,
+} from 'lucide-react';
 import { LessonSummary, ExpandedSections, LessonItem, DeckItem } from '@/types';
 import { SidebarSection } from './SidebarSection';
+
+export type GistSyncUiState = 'idle' | 'loading' | 'success' | 'error';
+
+function TrashedItemRow({
+  item,
+  onRestoreItem,
+  onDeleteForever,
+}: {
+  item: LessonSummary;
+  onRestoreItem: (id: string) => void;
+  onDeleteForever: (id: string) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuBtnRef.current) {
+      setMenuPos(null);
+      return;
+    }
+    const update = () => {
+      const el = menuBtnRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (menuBtnRef.current?.contains(t)) return;
+      const panel = document.getElementById(`trash-row-menu-${item.id}`);
+      if (panel?.contains(t)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [menuOpen, item.id]);
+
+  return (
+    <li
+      className="group rounded-lg border border-gray-800 bg-gray-900/40 px-2 py-2 text-xs relative ml-2"
+    >
+      <div className="flex items-start gap-2 min-w-0">
+        <div className="text-left text-gray-200 font-medium truncate flex-1 min-w-0">
+          {item.name}
+          <span className="block text-[10px] text-gray-500 font-normal mt-0.5">
+            {item.kind === 'flashcard' ? 'Deck' : 'Lesson'}
+            {item.trashedAt != null ? ` · ${new Date(item.trashedAt).toLocaleString()}` : ''}
+          </span>
+        </div>
+        <div className="relative shrink-0">
+          <button
+            ref={menuBtnRef}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((o) => !o);
+            }}
+            className={`p-0.5 rounded transition-colors ${
+              menuOpen
+                ? 'bg-gray-700 text-white'
+                : 'text-gray-400 hover:text-white opacity-100'
+            }`}
+            aria-label="Trashed item actions"
+          >
+            <MoreVertical size={14} />
+          </button>
+
+          {menuOpen &&
+            menuPos &&
+            createPortal(
+              <div
+                id={`trash-row-menu-${item.id}`}
+                role="menu"
+                className="fixed w-40 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[210] py-1 overflow-hidden"
+                style={{ top: menuPos.top, right: menuPos.right }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onRestoreItem(item.id);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 flex items-center gap-2 transition-colors"
+                >
+                  <RotateCcw size={14} aria-hidden />
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onDeleteForever(item.id);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} aria-hidden />
+                  Delete forever
+                </button>
+              </div>,
+              document.body
+            )}
+        </div>
+      </div>
+    </li>
+  );
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -15,11 +147,18 @@ interface SidebarProps {
   onItemSelect: (item: LessonItem | DeckItem) => void;
   onNewLesson: () => void;
   onNewDeck: () => void;
-  onDeleteLesson: (id: string) => void;
+  onTrashItem: (id: string) => void;
+  onRestoreItem: (id: string) => void;
+  onDeleteForever: (id: string) => void;
   onRenameLesson?: (id: string, newName: string) => void;
   onChangeLanguage?: (id: string, language: 'en' | 'de') => void | Promise<void>;
   onLogout: () => void;
   onToggleSection: (section: string, expanded: boolean) => void;
+  isMobile?: boolean;
+  gistSyncState?: GistSyncUiState;
+  gistLastSyncLabel?: string | null;
+  onGistPush?: () => void;
+  onGistPull?: () => void;
 }
 
 export function Sidebar({
@@ -32,11 +171,18 @@ export function Sidebar({
   onItemSelect,
   onNewLesson,
   onNewDeck,
-  onDeleteLesson,
+  onTrashItem,
+  onRestoreItem,
+  onDeleteForever,
   onRenameLesson,
   onChangeLanguage,
   onLogout,
   onToggleSection,
+  isMobile = false,
+  gistSyncState = 'idle',
+  gistLastSyncLabel,
+  onGistPush,
+  onGistPull,
 }: SidebarProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
@@ -48,7 +194,6 @@ export function Sidebar({
       language: l.language as 'en' | 'de',
       progress: l.progress,
       hasAudio: l.hasAudio,
-      hasIpa: l.hasIpa,
       type: 'lesson',
     }));
 
@@ -62,6 +207,11 @@ export function Sidebar({
       progress: l.progress,
       type: 'deck',
     }));
+
+  const trashed = lessons.filter((l) => l.isTrashed);
+  const trashExpanded = expandedSections.trash ?? false;
+
+  const gistBusy = gistSyncState === 'loading';
 
   return (
     <>
@@ -93,41 +243,58 @@ export function Sidebar({
             </div>
           </div>
 
-          <div className="actions-container flex flex-row gap-2 p-4">
-            <button
-              onClick={onNewLesson}
-              className="btn-new-lesson flex-1 py-2.5 px-2 text-sm bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
-              title="New audio lesson"
-            >
-              <Music2 size={16} aria-hidden />
-              <span>+ Audio</span>
-            </button>
-            <button
-              onClick={onNewDeck}
-              className="btn-new-deck flex-1 py-2.5 px-2 text-sm bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
-              title="New flashcard deck"
-            >
-              <Layers size={16} aria-hidden />
-              <span>+ Deck</span>
-            </button>
-          </div>
+          {!isMobile && (
+            <div className="actions-container flex flex-row gap-2 p-4">
+              <button
+                onClick={onNewLesson}
+                className="btn-new-lesson flex-1 py-2.5 px-2 text-sm bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
+                title="New audio lesson"
+              >
+                <Music2 size={16} aria-hidden />
+                <span>+ Audio</span>
+              </button>
+              <button
+                onClick={onNewDeck}
+                className="btn-new-deck flex-1 py-2.5 px-2 text-sm bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
+                title="New flashcard deck"
+              >
+                <Layers size={16} aria-hidden />
+                <span>+ Deck</span>
+              </button>
+            </div>
+          )}
+
+          {isMobile && (
+            <div className="actions-container flex flex-row gap-2 p-4">
+              <button
+                onClick={onNewDeck}
+                className="btn-new-deck flex-1 py-2.5 px-2 text-sm bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors duration-200"
+                title="New flashcard deck"
+              >
+                <Layers size={16} aria-hidden />
+                <span>+ Deck</span>
+              </button>
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto p-2 space-y-6">
-            <SidebarSection
-              type="lessons"
-              title="AUDIO"
-              items={activeLessons}
-              isLoading={isListLoading}
-              selectedItemId={selectedItemId}
-              expandedSections={expandedSections}
-              onToggleSection={onToggleSection}
-              onItemSelect={onItemSelect}
-              onDeleteLesson={onDeleteLesson}
-              onRenameLesson={onRenameLesson}
-              onChangeLanguage={onChangeLanguage}
-              activeMenu={activeMenu}
-              setActiveMenu={setActiveMenu}
-            />
+            {!isMobile && (
+              <SidebarSection
+                type="lessons"
+                title="AUDIO"
+                items={activeLessons}
+                isLoading={isListLoading}
+                selectedItemId={selectedItemId}
+                expandedSections={expandedSections}
+                onToggleSection={onToggleSection}
+                onItemSelect={onItemSelect}
+                onTrashItem={onTrashItem}
+                onRenameLesson={onRenameLesson}
+                onChangeLanguage={onChangeLanguage}
+                activeMenu={activeMenu}
+                setActiveMenu={setActiveMenu}
+              />
+            )}
 
             <SidebarSection
               type="decks"
@@ -138,13 +305,75 @@ export function Sidebar({
               expandedSections={expandedSections}
               onToggleSection={onToggleSection}
               onItemSelect={onItemSelect}
-              onDeleteLesson={onDeleteLesson}
+              onTrashItem={onTrashItem}
               onRenameLesson={onRenameLesson}
               onChangeLanguage={onChangeLanguage}
               activeMenu={activeMenu}
               setActiveMenu={setActiveMenu}
             />
+
+            {trashed.length > 0 && (
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => onToggleSection('trash', !trashExpanded)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm font-bold text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors duration-200"
+                >
+                  <span className="flex items-center gap-2">
+                    {trashExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    Trash ({trashed.length})
+                  </span>
+                </button>
+                {trashExpanded && (
+                  <ul className="space-y-1 pl-1">
+                    {trashed.map((l) => (
+                      <TrashedItemRow
+                        key={l.id}
+                        item={l}
+                        onRestoreItem={onRestoreItem}
+                        onDeleteForever={onDeleteForever}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
+
+          {(onGistPush || onGistPull) && (
+            <div className="p-3 border-t border-gray-800 space-y-2 shrink-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Gist sync</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={gistBusy}
+                  onClick={() => onGistPush?.()}
+                  className="flex-1 py-2 text-xs font-medium rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Push
+                </button>
+                <button
+                  type="button"
+                  disabled={gistBusy}
+                  onClick={() => onGistPull?.()}
+                  className="flex-1 py-2 text-xs font-medium rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Pull
+                </button>
+              </div>
+              {gistLastSyncLabel && (
+                <p className="text-[10px] text-gray-500 truncate" title={gistLastSyncLabel}>
+                  {gistLastSyncLabel}
+                </p>
+              )}
+              {gistSyncState === 'error' && (
+                <p className="text-[10px] text-red-400">Sync failed — check token and network.</p>
+              )}
+              {gistSyncState === 'success' && (
+                <p className="text-[10px] text-emerald-500/90">Done.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>

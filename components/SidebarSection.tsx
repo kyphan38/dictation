@@ -14,7 +14,7 @@ interface SidebarSectionProps {
   expandedSections: Record<string, boolean>;
   onToggleSection: (section: string, expanded: boolean) => void;
   onItemSelect: (item: LessonItem | DeckItem) => void;
-  onDeleteLesson: (id: string) => void;
+  onTrashItem: (id: string) => void;
   onRenameLesson?: (id: string, newName: string) => void;
   onChangeLanguage?: (id: string, language: 'en' | 'de') => void | Promise<void>;
   activeMenu: string | null;
@@ -31,7 +31,7 @@ export function SidebarSection({
   expandedSections,
   onToggleSection,
   onItemSelect,
-  onDeleteLesson,
+  onTrashItem,
   onRenameLesson,
   onChangeLanguage,
   activeMenu,
@@ -92,7 +92,7 @@ export function SidebarSection({
                         lesson={lesson}
                         selectedItemId={selectedItemId}
                         onItemSelect={onItemSelect}
-                        onDeleteLesson={onDeleteLesson}
+                        onTrashItem={onTrashItem}
                         onRenameLesson={onRenameLesson}
                         onChangeLanguage={onChangeLanguage}
                         activeMenu={activeMenu}
@@ -113,7 +113,7 @@ export function SidebarSection({
                         lesson={lesson}
                         selectedItemId={selectedItemId}
                         onItemSelect={onItemSelect}
-                        onDeleteLesson={onDeleteLesson}
+                        onTrashItem={onTrashItem}
                         onRenameLesson={onRenameLesson}
                         onChangeLanguage={onChangeLanguage}
                         activeMenu={activeMenu}
@@ -144,7 +144,7 @@ export function SidebarSection({
                         deck={deck}
                         selectedItemId={selectedItemId}
                         onItemSelect={onItemSelect}
-                        onDeleteLesson={onDeleteLesson}
+                        onTrashItem={onTrashItem}
                         onRenameLesson={onRenameLesson}
                         onChangeLanguage={onChangeLanguage}
                         activeMenu={activeMenu}
@@ -167,7 +167,7 @@ export function SidebarSection({
                         deck={deck}
                         selectedItemId={selectedItemId}
                         onItemSelect={onItemSelect}
-                        onDeleteLesson={onDeleteLesson}
+                        onTrashItem={onTrashItem}
                         onRenameLesson={onRenameLesson}
                         onChangeLanguage={onChangeLanguage}
                         activeMenu={activeMenu}

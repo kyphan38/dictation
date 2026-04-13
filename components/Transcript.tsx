@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Eye, EyeOff, RotateCcw } from 'lucide-react';
-import { Sentence, AppMode, SpokenResult, IPAData, DictationInputs, CompletedSentences, RecognitionState } from '@/types';
+import { Sentence, AppMode, SpokenResult, DictationInputs, CompletedSentences, RecognitionState } from '@/types';
 import { TranscriptSentence } from './TranscriptSentence';
 
 interface TranscriptProps {
@@ -18,7 +18,6 @@ interface TranscriptProps {
   isRecording: number | null;
   spokenResults: Record<number, SpokenResult>;
   recognitionErrors: RecognitionState;
-  ipaData: IPAData;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   onSentenceClick: (sentence: Sentence) => void;
   onDictationChange: (sentence: Sentence, value: string) => void;
@@ -42,7 +41,6 @@ export function Transcript({
   isRecording,
   spokenResults,
   recognitionErrors,
-  ipaData,
   scrollContainerRef,
   onSentenceClick,
   onDictationChange,
@@ -112,7 +110,6 @@ export function Transcript({
               isRecording={isRecording}
               spokenResult={spokenResults[sentence.id]}
               recognitionError={recognitionErrors[sentence.id]}
-              ipaData={ipaData}
               onSentenceClick={onSentenceClick}
               onDictationChange={onDictationChange}
               onDictationKeyDown={onDictationKeyDown}

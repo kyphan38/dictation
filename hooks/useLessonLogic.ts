@@ -1,29 +1,16 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { GoogleGenAI, Type } from '@google/genai';
 import { Sentence, AppMode, ExpandedSections } from '@/types';
+import { DEFAULT_APP_MODE, SAVE_PROGRESS_DELAY_MS } from '@/constants';
+import { parseTranscript, uniquifyName, flashcardDeckProgressPercent } from '@/lib/utils';
 import {
-  DEFAULT_APP_MODE,
-  GEMINI_IPA_MODEL,
-  IPA_CHUNK_SIZE,
-  IPA_MAX_CONCURRENT,
-  SAVE_PROGRESS_DELAY_MS,
-} from '@/constants';
-import {
-  parseTranscript,
-  getIPASystemInstruction,
-  parseGeminiJsonArray,
-  uniquifyName,
-  flashcardDeckProgressPercent,
-} from '@/lib/utils';
-import { getAllLessons, getLesson, saveLesson, deleteLesson, updateLessonProgress } from '@/lib/db';
-
-/** `GenerateContentResponse.text` skips parts with `thought: true`; Gemini 3 may emit JSON only in those parts. */
-function joinAllCandidateTextParts(response: {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-}): string {
-  const parts = response.candidates?.[0]?.content?.parts ?? [];
-  return parts.map((p) => (typeof p.text === 'string' ? p.text : '')).join('').trim();
-}
+  getAllLessons,
+  getLesson,
+  saveLesson,
+  deleteLesson,
+  updateLessonProgress,
+  bumpLessonUpdatedAt,
+  type LessonRecord,
+} from '@/lib/db';
 
 export function useLessonLogic(
   audioFile: File | null,
@@ -37,11 +24,22 @@ export function useLessonLogic(
   const [dictationInputs, setDictationInputs] = useState<Record<number, string>>({});
   const [completedSentences, setCompletedSentences] = useState<Record<number, boolean>>({});
   const [isStarted, setIsStarted] = useState<boolean>(false);
-  const [isGeneratingIPA, setIsGeneratingIPA] = useState<boolean>(false);
-  const [ipaData, setIpaData] = useState<Record<number, string>>({});
-  const ipaDataRef = useRef<Record<number, string>>({});
   const currentLessonIdRef = useRef<string | null>(null);
-  const [lessonsList, setLessonsList] = useState<any[]>([]);
+  const lessonLoadGenerationRef = useRef(0);
+
+  const [lessonsList, setLessonsList] = useState<
+    Array<{
+      id: string;
+      name: string;
+      language: string;
+      progress: number;
+      totalSentences: number;
+      kind: 'audio' | 'flashcard';
+      isTrashed: boolean;
+      hasAudio: boolean;
+      trashedAt?: number;
+    }>
+  >([]);
   const [isListLoading, setIsListLoading] = useState(true);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [lessonName, setLessonName] = useState<string>('');
@@ -52,6 +50,7 @@ export function useLessonLogic(
     'audio-de': false,
     'flashcard-en': true,
     'flashcard-de': false,
+    trash: false,
   });
 
   const appModeRef = useRef<AppMode>(appMode);
@@ -64,10 +63,6 @@ export function useLessonLogic(
   useEffect(() => {
     completedSentencesRef.current = completedSentences;
   }, [completedSentences]);
-
-  useEffect(() => {
-    ipaDataRef.current = ipaData;
-  }, [ipaData]);
 
   const transcript = useMemo(() => parseTranscript(transcriptText), [transcriptText]);
 
@@ -94,15 +89,15 @@ export function useLessonLogic(
               : audioProgress,
           totalSentences: l.totalSentences ?? 0,
           kind,
-          hasIpa: Object.keys(l.ipaData || {}).length > 0,
           isTrashed: !!l.isTrashed,
           hasAudio: !!l.audioFile,
+          trashedAt: l.trashedAt,
         };
       });
       rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
       setLessonsList(rows);
     } catch (e) {
-      console.error("Failed to load lessons", e);
+      console.error('Failed to load lessons', e);
     } finally {
       if (trackLoading) setIsListLoading(false);
     }
@@ -110,7 +105,7 @@ export function useLessonLogic(
 
   useEffect(() => {
     loadLessonsList({ trackLoading: true });
-  }, []);
+  }, [loadLessonsList]);
 
   const progressSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -128,11 +123,7 @@ export function useLessonLogic(
     }
     progressSaveTimeoutRef.current = setTimeout(() => {
       progressSaveTimeoutRef.current = null;
-      updateLessonProgress(
-        currentLessonId,
-        completedSentencesRef.current,
-        ipaDataRef.current
-      ).then(() => {
+      updateLessonProgress(currentLessonId, completedSentencesRef.current).then(() => {
         loadLessonsList();
       });
     }, SAVE_PROGRESS_DELAY_MS);
@@ -142,35 +133,35 @@ export function useLessonLogic(
         progressSaveTimeoutRef.current = null;
       }
     };
-  }, [completedSentences, ipaData, currentLessonId, isStarted]);
+  }, [completedSentences, currentLessonId, isStarted, loadLessonsList]);
 
   /** Cancel debounced progress save and persist latest progress so a later put cannot resurrect cleared audio. */
-  const prepareForLessonMediaClear = useCallback(async (lessonId: string) => {
-    if (progressSaveTimeoutRef.current) {
-      clearTimeout(progressSaveTimeoutRef.current);
-      progressSaveTimeoutRef.current = null;
-    }
-    const active =
-      currentLessonIdRef.current === lessonId || currentLessonId === lessonId;
-    if (active && isStarted) {
-      await updateLessonProgress(
-        lessonId,
-        completedSentencesRef.current,
-        ipaDataRef.current
-      );
-      await loadLessonsList();
-    }
-  }, [currentLessonId, isStarted]);
+  const prepareForLessonMediaClear = useCallback(
+    async (lessonId: string) => {
+      if (progressSaveTimeoutRef.current) {
+        clearTimeout(progressSaveTimeoutRef.current);
+        progressSaveTimeoutRef.current = null;
+      }
+      const active = currentLessonIdRef.current === lessonId || currentLessonId === lessonId;
+      if (active && isStarted) {
+        await updateLessonProgress(lessonId, completedSentencesRef.current);
+        await loadLessonsList();
+      }
+    },
+    [currentLessonId, isStarted, loadLessonsList]
+  );
 
   const handleLoadLesson = async (id: string) => {
+    const myGen = ++lessonLoadGenerationRef.current;
     try {
       const lesson = await getLesson(id);
+      if (myGen !== lessonLoadGenerationRef.current) return;
       if (lesson) {
         currentLessonIdRef.current = lesson.id;
         setCurrentLessonId(lesson.id);
         setLessonName(lesson.name);
         setRecognitionLang(lesson.language);
-        
+
         if (lesson.audioFile) {
           setAudioFile(lesson.audioFile);
           setAudioURL(URL.createObjectURL(lesson.audioFile));
@@ -178,35 +169,36 @@ export function useLessonLogic(
           setAudioFile(null);
           setAudioURL(null);
         }
-        
+
         setTranscriptText(lesson.transcriptText);
-        const loadedIpa = lesson.ipaData || {};
-        ipaDataRef.current = loadedIpa;
-        setIpaData(loadedIpa);
         setCompletedSentences(lesson.completedSentences || {});
         const hasTranscript = !!(lesson.transcriptText && lesson.transcriptText.trim());
         setIsStarted(!!lesson.audioFile || hasTranscript);
         setAppMode('normal');
-        
+
         lesson.lastAccessed = Date.now();
         await saveLesson(lesson);
+        if (myGen !== lessonLoadGenerationRef.current) return;
         loadLessonsList();
         if (window.innerWidth < 768) setIsSidebarOpen(false);
       }
     } catch (e) {
-      console.error("Failed to load lesson", e);
+      console.error('Failed to load lesson', e);
     }
   };
 
+  const bumpLessonLoadGeneration = useCallback(() => {
+    lessonLoadGenerationRef.current += 1;
+  }, []);
+
   const handleNewLesson = () => {
+    bumpLessonLoadGeneration();
     currentLessonIdRef.current = null;
     setCurrentLessonId(null);
     setLessonName('');
     setAudioFile(null);
     setAudioURL(null);
     setTranscriptText('');
-    ipaDataRef.current = {};
-    setIpaData({});
     setCompletedSentences({});
     setIsStarted(false);
     setAppMode('normal');
@@ -217,6 +209,7 @@ export function useLessonLogic(
     const lesson = await getLesson(id);
     if (lesson) {
       lesson.name = newName;
+      bumpLessonUpdatedAt(lesson);
       await saveLesson(lesson);
       if (currentLessonId === id) {
         setLessonName(newName);
@@ -226,19 +219,17 @@ export function useLessonLogic(
   };
 
   const handleUpdateItemLanguage = useCallback(
-    async (id: string, language: 'en' | 'de'): Promise<{ ipaNote: boolean }> => {
+    async (id: string, language: 'en' | 'de'): Promise<void> => {
       const lesson = await getLesson(id);
-      if (!lesson) return { ipaNote: false };
-      const prev = lesson.language;
-      if (prev === language) return { ipaNote: false };
-      const ipaNote = Object.keys(lesson.ipaData || {}).length > 0;
+      if (!lesson) return;
+      if (lesson.language === language) return;
       lesson.language = language;
+      bumpLessonUpdatedAt(lesson);
       await saveLesson(lesson);
       if (currentLessonId === id) {
         setRecognitionLang(language);
       }
       await loadLessonsList();
-      return { ipaNote };
     },
     [currentLessonId, setRecognitionLang, loadLessonsList]
   );
@@ -252,143 +243,30 @@ export function useLessonLogic(
     loadLessonsList();
   };
 
-  const pickRowIpa = (row: unknown): string => {
-    if (!row || typeof row !== 'object') return '';
-    const o = row as Record<string, unknown>;
-    const raw = o.ipa ?? o.IPA;
-    return raw != null ? String(raw).trim() : '';
-  };
-
-  const fetchIPA = async (sentencesToUse = transcript, langOverride?: string): Promise<boolean> => {
-    const ref = ipaDataRef.current;
-    const hasUsefulIpa = Object.values(ref).some((v) => typeof v === 'string' && v.trim().length > 0);
-    if (hasUsefulIpa) return true;
-    if (!sentencesToUse.length) return true;
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
-    if (!apiKey) {
-      return false;
-    }
-    const lang = langOverride ?? recognitionLang;
-    const model = GEMINI_IPA_MODEL;
-    const ipaSchema = {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.NUMBER },
-          ipa: { type: Type.STRING },
-        },
-        required: ['id', 'ipa'],
-      },
-    };
-
-    const chunks: Sentence[][] = [];
-    for (let i = 0; i < sentencesToUse.length; i += IPA_CHUNK_SIZE) {
-      chunks.push(sentencesToUse.slice(i, i + IPA_CHUNK_SIZE));
-    }
-
-    setIsGeneratingIPA(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-
-      const runChunk = async (chunk: Sentence[]): Promise<Record<number, string>> => {
-        const sentencesToTranslate = chunk.map((s) => ({ id: s.id, text: s.text }));
-        const response = await ai.models.generateContent({
-          model,
-          contents: JSON.stringify(sentencesToTranslate),
-          config: {
-            systemInstruction: getIPASystemInstruction(lang),
-            responseMimeType: 'application/json',
-            responseSchema: ipaSchema,
-          },
-        });
-
-        if (!response.candidates?.length) {
-          throw new Error(
-            `Gemini returned no candidates: ${JSON.stringify(response.promptFeedback ?? {})}`
-          );
-        }
-
-        const fromSdk = response.text?.trim() ?? '';
-        const fromAllParts = joinAllCandidateTextParts(response);
-        let jsonStr = fromSdk || fromAllParts || '[]';
-        if (jsonStr.startsWith('```')) {
-          jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
-        }
-        const parsed = parseGeminiJsonArray(jsonStr) as unknown[];
-
-        const partial: Record<number, string> = {};
-        chunk.forEach((s, i) => {
-          const row =
-            (parsed.find((p) => p && typeof p === 'object' && Number((p as { id?: number }).id) === s.id) as
-              | unknown
-              | undefined) ?? parsed[i];
-          const ipa = pickRowIpa(row);
-          if (ipa) partial[s.id] = ipa;
-        });
-        return partial;
-      };
-
-      const newIpaData: Record<number, string> = {};
-      let chunkIndex = 0;
-      const workerCount = Math.min(IPA_MAX_CONCURRENT, chunks.length);
-
-      const worker = async () => {
-        for (;;) {
-          const i = chunkIndex++;
-          if (i >= chunks.length) break;
-          const partial = await runChunk(chunks[i]!);
-          Object.assign(newIpaData, partial);
-        }
-      };
-
-      await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-      const outKeyCount = Object.keys(newIpaData).length;
-
-      if (outKeyCount === 0) {
-        return false;
-      }
-
-      ipaDataRef.current = newIpaData;
-      setIpaData(newIpaData);
-
-      const persistId = currentLessonIdRef.current;
-      if (persistId) {
-        await updateLessonProgress(persistId, completedSentencesRef.current, newIpaData);
-        loadLessonsList();
-      }
-      return true;
-    } catch {
-      return false;
-    } finally {
-      setIsGeneratingIPA(false);
-    }
-  };
-
   const handleStartLearning = async () => {
     if (!audioFile || !transcriptText) return;
-    
+
     let lessonId = currentLessonId;
     const sentences = parseTranscript(transcriptText);
-    
+
     if (!lessonId) {
       lessonId = Date.now().toString();
-      const name = lessonName.trim() || audioFile.name.replace(/\.[^/.]+$/, "");
-      
-      const newLesson = {
+      const name = lessonName.trim() || audioFile.name.replace(/\.[^/.]+$/, '');
+      const now = Date.now();
+
+      const newLesson: LessonRecord = {
         id: lessonId,
         name,
         language: recognitionLang,
         audioFile,
         transcriptText,
-        ipaData: {},
         completedSentences: {},
         totalSentences: sentences.length,
-        createdAt: Date.now(),
-        lastAccessed: Date.now()
+        createdAt: now,
+        lastAccessed: now,
+        updatedAt: now,
       };
-      
+
       await saveLesson(newLesson);
       currentLessonIdRef.current = lessonId;
       setCurrentLessonId(lessonId);
@@ -400,11 +278,12 @@ export function useLessonLogic(
         existingLesson.audioFile = audioFile;
         existingLesson.isTrashed = false;
         existingLesson.lastAccessed = Date.now();
+        bumpLessonUpdatedAt(existingLesson);
         await saveLesson(existingLesson);
         loadLessonsList();
       }
     }
-    
+
     setIsStarted(true);
   };
 
@@ -450,29 +329,33 @@ export function useLessonLogic(
     const finalName = uniquifyName(base, taken);
 
     const lessonId = Date.now().toString();
-    
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    
-    const newLesson = {
+    const now = Date.now();
+
+    const lines = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const newLesson: LessonRecord = {
       id: lessonId,
-      type: 'flashcard' as const,
+      type: 'flashcard',
       name: finalName,
       language: recognitionLang,
       transcriptText: '',
-      ipaData: {},
       completedSentences: {},
       totalSentences: lines.length,
-      createdAt: Date.now(),
-      lastAccessed: Date.now(),
+      createdAt: now,
+      lastAccessed: now,
+      updatedAt: now,
       flashcardData: {
         lines,
         ratings: {},
         currentIndex: 0,
         isShuffled: false,
-        shuffledIndices: Array.from({ length: lines.length }, (_, i) => i)
-      }
+        shuffledIndices: Array.from({ length: lines.length }, (_, i) => i),
+      },
     };
-    
+
     await saveLesson(newLesson);
     currentLessonIdRef.current = lessonId;
     setCurrentLessonId(lessonId);
@@ -493,8 +376,6 @@ export function useLessonLogic(
     setCompletedSentences,
     isStarted,
     setIsStarted,
-    isGeneratingIPA,
-    ipaData,
     lessonsList,
     isListLoading,
     currentLessonId,
@@ -510,10 +391,10 @@ export function useLessonLogic(
     completedSentencesRef,
     transcript,
     handleLoadLesson,
+    bumpLessonLoadGeneration,
     handleNewLesson,
     handleRenameLesson,
     handleDeletePermanently,
-    fetchIPA,
     handleStartLearning,
     handleModeChange,
     expandSidebarForItem,
@@ -521,6 +402,6 @@ export function useLessonLogic(
     handleFlashcardUpload,
     loadLessonsList,
     prepareForLessonMediaClear,
-    handleUpdateItemLanguage
+    handleUpdateItemLanguage,
   };
 }

@@ -11,7 +11,6 @@ interface PlayerProps {
   currentTime: number;
   playbackRate: number;
   loopMode: LoopMode;
-  isGeneratingIPA: boolean;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSpeedChange: () => void;
@@ -24,7 +23,6 @@ export function Player({
   currentTime,
   playbackRate,
   loopMode,
-  isGeneratingIPA,
   onPlayPause,
   onSeek,
   onSpeedChange,
@@ -41,7 +39,6 @@ export function Player({
         isPlaying={isPlaying}
         playbackRate={playbackRate}
         loopMode={loopMode}
-        isGeneratingIPA={isGeneratingIPA}
         onPlayPause={onPlayPause}
         onSpeedChange={onSpeedChange}
         onLoopModeChange={onLoopModeChange}
