@@ -126,7 +126,7 @@ function TrashedItemRow({
                   className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} aria-hidden />
-                  Delete forever
+                  Delete
                 </button>
               </div>,
               document.body

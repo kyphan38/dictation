@@ -115,23 +115,22 @@ export default function NodaApp() {
   }, [viewport.decided, viewport.isMobile, setIsSidebarOpen]);
 
   const lessonsListRef = useRef<typeof lessonsList>([]);
-  useEffect(() => {
-    lessonsListRef.current = lessonsList;
-  });
+  lessonsListRef.current = lessonsList;
 
+  /** Read from ref so async callbacks (e.g. FileReader in modals) always see the latest list after delete/reload. */
   const getTakenAudioLessonNames = useCallback(
     () =>
-      lessonsList
+      lessonsListRef.current
         .filter((l) => l.kind === 'audio' && !l.isTrashed)
         .map((l) => l.name),
-    [lessonsList]
+    []
   );
   const getTakenFlashcardDeckNames = useCallback(
     () =>
-      lessonsList
+      lessonsListRef.current
         .filter((l) => l.kind === 'flashcard' && !l.isTrashed)
         .map((l) => l.name),
-    [lessonsList]
+    []
   );
 
   const onChangeItemLanguage = useCallback(

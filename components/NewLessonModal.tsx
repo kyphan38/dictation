@@ -109,7 +109,7 @@ export function NewLessonModal({
     <div className="app-modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="app-modal-panel relative bg-gray-800 rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-700/80">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">🎧 Create New Audio Lesson</h2>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">🎧 New Audio</h2>
           <button
             type="button"
             onClick={onClose}
@@ -121,10 +121,10 @@ export function NewLessonModal({
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Lesson Name</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">Name</label>
             <input
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500"
-              placeholder="Lesson name (e.g., German A1 Basics)"
+              placeholder=""
               value={lessonName}
               onChange={(e) => {
                 setLessonName(e.target.value);
@@ -203,7 +203,7 @@ export function NewLessonModal({
             >
               <FileText size={20} className="text-gray-400 shrink-0" />
               <div className="flex-1 text-left min-w-0">
-                <p className="text-sm font-medium text-gray-300">+ Add transcript (.srt) - optional</p>
+                <p className="text-sm font-medium text-gray-300">+ Add transcript (.srt)</p>
                 <p className="text-xs text-gray-500 mt-0.5">Drop file here or click</p>
                 {transcriptFile && <p className="text-xs text-emerald-500 mt-1">✓ {transcriptFile.name}</p>}
               </div>
@@ -226,7 +226,7 @@ export function NewLessonModal({
             disabled={!audioFile || !lessonName}
             onClick={handleSubmit}
           >
-            Create Lesson
+            Create
           </button>
         </div>
       </div>

@@ -87,7 +87,7 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
     <div className="app-modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="app-modal-panel bg-gray-800 rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-700/80">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">🎴 Create Flashcard Deck</h2>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">🎴 New Deck</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
         </div>
 
@@ -96,7 +96,7 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
             <label className="block text-sm font-medium text-gray-400 mb-2">Deck Name</label>
             <input
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
-              placeholder="Deck name (e.g., German Verbs A1)"
+              placeholder=""
               value={deckName}
               onChange={(e) => {
                 setDeckName(e.target.value);
@@ -121,7 +121,7 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
 
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
-              Flashcard Content
+              Content
               <span className="text-gray-500 text-xs font-normal">(One item per line)</span>
             </label>
 
@@ -137,7 +137,7 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
             >
               <textarea
                 className="w-full min-h-[200px] max-h-[280px] bg-gray-900/80 border border-gray-700 rounded-xl p-4 font-mono text-sm leading-relaxed text-white resize-y focus:outline-none focus:border-blue-500"
-                placeholder={`der Apfel\ndie Katze\ndas Haus\nlernen\nmachen\n...`}
+                placeholder=""
                 rows={10}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -184,7 +184,7 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
             disabled={!deckName || cardCount === 0}
             onClick={handleSubmit}
           >
-            Create Deck ({cardCount} cards)
+            Create ({cardCount} cards)
           </button>
         </div>
       </div>

@@ -240,7 +240,7 @@ export function useLessonLogic(
       handleNewLesson();
     }
     setLessonToDelete(null);
-    loadLessonsList();
+    await loadLessonsList();
   };
 
   const handleStartLearning = async () => {
@@ -324,7 +324,7 @@ export function useLessonLogic(
     if (!text.trim()) return;
 
     const all = await getAllLessons();
-    const taken = all.filter((l) => l.type === 'flashcard').map((l) => l.name);
+    const taken = all.filter((l) => l.type === 'flashcard' && !l.isTrashed).map((l) => l.name);
     const base = name.trim() || text.split('\n')[0].substring(0, 30) || 'Untitled deck';
     const finalName = uniquifyName(base, taken);
 
