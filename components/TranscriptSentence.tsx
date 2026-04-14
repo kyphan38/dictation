@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Play, CheckCircle2, MicOff, Mic, FastForward, Wand2 } from 'lucide-react';
 import { Sentence, AppMode, SpokenResult, CompletedSentences, RecognitionState } from '@/types';
 import { PRONUNCIATION_SCORE_THRESHOLD } from '@/constants';
@@ -48,22 +48,29 @@ export function TranscriptSentence({
   onSkip,
   onSimulateSuccess,
 }: TranscriptSentenceProps) {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const indexRef = useRef<HTMLSpanElement | null>(null);
+  const textRef = useRef<HTMLParagraphElement | null>(null);
+  const statusRef = useRef<HTMLDivElement | null>(null);
+
   return (
     <div
+      ref={rowRef}
       data-index={index}
       onClick={() => onSentenceClick(sentence)}
       className={`
-        group flex gap-4 p-4 rounded-xl cursor-pointer transition-all duration-200
+        group flex items-baseline gap-4 px-3 py-5 mb-3 rounded-xl cursor-pointer transition-all duration-200
         ${
           isActive
-            ? 'bg-emerald-400/10 border border-emerald-400/30'
+            ? 'bg-emerald-400/10 border border-emerald-400/30 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.12)]'
             : 'hover:bg-gray-800 border border-transparent'
         }
       `}
     >
       <span
+        ref={indexRef}
         className={`
-          font-mono text-sm mt-1 shrink-0 w-6 text-right
+          font-mono text-sm shrink-0 w-10 text-right tabular-nums self-baseline
           ${
             isActive ? 'text-emerald-400 font-bold' : isPast ? 'text-gray-600' : 'text-gray-500'
           }
@@ -72,7 +79,7 @@ export function TranscriptSentence({
         {index + 1}.
       </span>
 
-      <div className="flex-1 flex flex-col gap-2">
+      <div className="flex-1 min-w-0 flex flex-col gap-3">
         {appMode === 'dictation' ? (
           <DictationControls
             sentence={sentence}
@@ -85,6 +92,7 @@ export function TranscriptSentence({
           />
         ) : (
           <NormalMode
+            textRef={textRef}
             sentence={sentence}
             isActive={isActive}
             isPast={isPast}
@@ -101,6 +109,7 @@ export function TranscriptSentence({
 
       {/* Status Icon & Mic */}
       <StatusBar
+        statusRef={statusRef}
         sentence={sentence}
         isActive={isActive}
         isPast={isPast}
@@ -119,6 +128,7 @@ export function TranscriptSentence({
 }
 
 function NormalMode({
+  textRef,
   sentence,
   isActive,
   isPast,
@@ -130,6 +140,7 @@ function NormalMode({
   onSkip,
   onSimulateSuccess,
 }: {
+  textRef: React.RefObject<HTMLParagraphElement | null>;
   sentence: Sentence;
   isActive: boolean;
   isPast: boolean;
@@ -144,6 +155,7 @@ function NormalMode({
   return (
     <div className="flex flex-col gap-2">
       <p
+        ref={textRef}
         className={`
           font-sans text-lg leading-loose
           ${
@@ -212,6 +224,7 @@ function NormalMode({
 }
 
 function StatusBar({
+  statusRef,
   sentence,
   isActive,
   isPast,
@@ -225,6 +238,7 @@ function StatusBar({
   onToggleRecording,
   onSkip,
 }: {
+  statusRef: React.RefObject<HTMLDivElement | null>;
   sentence: Sentence;
   isActive: boolean;
   isPast: boolean;
@@ -240,7 +254,7 @@ function StatusBar({
 }) {
   if (appMode === 'shadowing') {
     return (
-      <div className="shrink-0 flex flex-row flex-wrap items-center justify-end gap-2 mt-1 max-w-[min(100%,280px)]">
+      <div ref={statusRef} className="shrink-0 flex flex-row flex-wrap items-center justify-end gap-2 self-center max-w-[min(100%,280px)]">
         {isActive && isPlaying && (
           <Play className="w-5 h-5 text-emerald-400 fill-current animate-pulse shrink-0 pointer-events-none" aria-hidden />
         )}
@@ -311,7 +325,7 @@ function StatusBar({
   }
 
   return (
-    <div className="shrink-0 flex flex-row items-center justify-end gap-2 mt-1">
+    <div ref={statusRef} className="shrink-0 flex flex-row items-center justify-end gap-2 self-center">
       {isActive && <Play className="w-5 h-5 text-emerald-400 fill-current animate-pulse" />}
       {isPast && !isActive && <CheckCircle2 className="w-5 h-5 text-gray-600" />}
     </div>

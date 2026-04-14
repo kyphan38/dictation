@@ -237,7 +237,7 @@ export function Sidebar({
             isOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+          <div className="p-4 flex items-center justify-between">
             <h2 className="text-xl font-bold text-white">Noda.</h2>
             <div className="flex items-center gap-1">
               <button
@@ -355,7 +355,7 @@ export function Sidebar({
           </div>
 
           {(onGistPush || onGistPull) && (
-            <div className="p-3 border-t border-gray-800 space-y-2 shrink-0">
+            <div className="p-3 space-y-2 shrink-0">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Gist sync</p>
               <div className="flex gap-2">
                 <button

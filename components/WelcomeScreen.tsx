@@ -43,7 +43,7 @@ export function WelcomeScreen({ onNewLesson, onNewDeck, hideAudio = false }: Wel
           </div>
         </div>
 
-        <div className="space-y-6 pt-8 border-t border-gray-800/50">
+        <div className="space-y-6 pt-8">
           <p className="text-gray-400">
             Get started by creating a new lesson or flashcard deck
           </p>

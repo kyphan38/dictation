@@ -8,6 +8,8 @@ import {
   Trash2,
   Globe,
   Check,
+  Video,
+  Music2,
 } from 'lucide-react';
 import { LessonItem } from '@/types';
 
@@ -147,6 +149,11 @@ export function LessonCard({
               )}
             </h4>
             <span className="flex items-center gap-0.5 text-xs text-gray-500 tabular-nums shrink-0">
+              {lesson.mediaType === 'video' ? (
+                <Video size={11} className="text-gray-500 shrink-0" />
+              ) : (
+                <Music2 size={11} className="text-gray-500 shrink-0" />
+              )}
               <CheckCircle2
                 size={11}
                 className={lesson.progress === 100 ? 'text-green-400' : 'text-gray-600'}

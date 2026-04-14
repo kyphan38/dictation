@@ -18,7 +18,7 @@ export function PlaybackSeekBar({
   compact = false,
 }: PlaybackSeekBarProps) {
   return (
-    <div className={`flex items-center ${compact ? 'gap-2 mb-1' : 'gap-4 mb-6'}`}>
+    <div className={`seekbar-row flex items-center ${compact ? 'gap-2 mb-1' : 'gap-4 mb-6'}`}>
       <span className={`${compact ? 'text-xs w-10' : 'text-sm w-12'} font-mono tabular-nums text-gray-400 text-right`}>
         {formatTime(currentTime)}
       </span>

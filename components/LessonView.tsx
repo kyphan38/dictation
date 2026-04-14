@@ -92,15 +92,29 @@ export function LessonView({
   const [videoHidden, setVideoHidden] = useState(false);
   const [hevcWarning, setHevcWarning] = useState(false);
   const [videoHovered, setVideoHovered] = useState(false);
-
+  const pendingToggleRestoreRef = React.useRef<{
+    time: number;
+    wasPlaying: boolean;
+    rate: number;
+  } | null>(null);
   const toggleVideoHidden = useCallback(() => {
+    const media = mediaRef.current;
+    if (media) {
+      pendingToggleRestoreRef.current = {
+        time: media.currentTime,
+        wasPlaying: !media.paused,
+        rate: media.playbackRate,
+      };
+    }
     setVideoHidden((v) => !v);
-  }, []);
+  }, [mediaRef]);
 
   const mediaType = lesson.mediaType ?? 'audio';
   const isVideoLesson = mediaType === 'video' && !!mediaURL;
   const videoLayout = isVideoLesson && !isMobile;
-  const showOverlayControls = videoHidden || !isPlaying || videoHovered;
+  const showVideoStage = videoLayout && !videoHidden;
+  const showOverlayControls = !videoHidden && (!isPlaying || videoHovered);
+  const renderPanelPlayer = !videoLayout || videoHidden;
 
   useEffect(() => {
     setVideoHidden(false);
@@ -153,8 +167,50 @@ export function LessonView({
     };
   }, [isVideoLesson, isMobile, mediaURL, lesson.id, mediaRef]);
 
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (!media) return;
+    if (Number.isFinite(playbackRate) && Math.abs(media.playbackRate - playbackRate) > 0.001) {
+      media.playbackRate = playbackRate;
+    }
+  }, [lesson.id, mediaURL, videoHidden, showVideoStage, playbackRate, mediaRef]);
+
   const mediaEvents = {
-    onLoadedMetadata: (e: React.SyntheticEvent<HTMLMediaElement>) => setDuration(e.currentTarget.duration),
+    onLoadedMetadata: (e: React.SyntheticEvent<HTMLMediaElement>) => {
+      const media = e.currentTarget;
+      setDuration(media.duration);
+
+      const restore = pendingToggleRestoreRef.current;
+      if (!restore) return;
+
+      const before = {
+        currentTime: media.currentTime,
+        paused: media.paused,
+        playbackRate: media.playbackRate,
+      };
+
+      if (Number.isFinite(restore.rate) && Math.abs(media.playbackRate - restore.rate) > 0.001) {
+        media.playbackRate = restore.rate;
+      }
+
+      if (Number.isFinite(restore.time) && restore.time >= 0) {
+        try {
+          const seekTarget =
+            Number.isFinite(media.duration) && media.duration > 0
+              ? Math.min(restore.time, Math.max(0, media.duration - 0.05))
+              : restore.time;
+          media.currentTime = seekTarget;
+        } catch {
+          // metadata can report duration before seekability; ignore and rely on current playback loop
+        }
+      }
+
+      if (restore.wasPlaying && media.paused) {
+        media.play().catch(() => {});
+      }
+
+      pendingToggleRestoreRef.current = null;
+    },
     onEnded: () => setIsPlaying(false),
     onPlay: () => setIsPlaying(true),
     onPause: () => setIsPlaying(false),
@@ -179,7 +235,18 @@ export function LessonView({
         />
       )}
 
-      {mediaURL && isVideoLesson && !isMobile && (
+      {mediaURL && isVideoLesson && !isMobile && videoHidden && (
+        <video
+          ref={mediaRef as React.RefObject<HTMLVideoElement>}
+          src={mediaURL}
+          playsInline
+          preload="metadata"
+          className="fixed w-px h-px opacity-0 -left-[9999px] pointer-events-none"
+          {...mediaEvents}
+        />
+      )}
+
+      {mediaURL && isVideoLesson && !isMobile && showVideoStage && (
         <div
           className="relative shrink-0"
           onMouseEnter={() => setVideoHovered(true)}
@@ -188,7 +255,7 @@ export function LessonView({
           <VideoPane
             ref={mediaRef as React.RefObject<HTMLVideoElement>}
             src={mediaURL}
-            videoHidden={videoHidden}
+            videoHidden={false}
             onLoadedMetadata={mediaEvents.onLoadedMetadata}
             onEnded={mediaEvents.onEnded}
             onPlay={mediaEvents.onPlay}
@@ -199,7 +266,7 @@ export function LessonView({
               showOverlayControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
           >
-            <div className="px-3 pb-2 pt-6 bg-gradient-to-t from-black/85 via-black/35 to-transparent rounded-b-xl">
+            <div className="px-2.5 pb-1.5 pt-3 bg-gradient-to-t from-black/85 via-black/25 to-transparent rounded-b-xl">
               <MemoPlayer
                 isPlaying={isPlaying}
                 duration={duration}
@@ -238,28 +305,30 @@ export function LessonView({
         <audio ref={mediaRef} src={mediaURL} className="hidden" {...mediaEvents} loop={false} />
       )}
 
-      <div className={videoLayout ? 'flex flex-col flex-1 min-h-0' : 'flex flex-col flex-1 min-h-0 gap-3'}>
-        {!videoLayout && (
-          <MemoPlayer
-            isPlaying={isPlaying}
-            duration={duration}
-            currentTime={currentTime}
-            playbackRate={playbackRate}
-            loopMode={loopMode}
-            onPlayPause={onPlayPause}
-            onSeek={onSeek}
-            onSpeedChange={onSpeedChange}
-            onLoopModeChange={onLoopModeChange}
-            seekDisabled={seekDisabled}
-            showVideoToggle={isVideoLesson}
-            videoHidden={videoHidden}
-            onToggleVideoHidden={toggleVideoHidden}
-            showCaptionsToggle={mode === 'normal' && !!onToggleHideCaptions}
-            captionsHidden={!!hideCaptions}
-            onToggleCaptions={onToggleHideCaptions}
-            showReset={mode === 'dictation' && !!onResetDictation}
-            onReset={onResetDictation}
-          />
+      <div className={renderPanelPlayer ? 'flex flex-col flex-1 min-h-0 gap-3' : 'flex flex-col flex-1 min-h-0'}>
+        {renderPanelPlayer && (
+          <div>
+            <MemoPlayer
+              isPlaying={isPlaying}
+              duration={duration}
+              currentTime={currentTime}
+              playbackRate={playbackRate}
+              loopMode={loopMode}
+              onPlayPause={onPlayPause}
+              onSeek={onSeek}
+              onSpeedChange={onSpeedChange}
+              onLoopModeChange={onLoopModeChange}
+              seekDisabled={seekDisabled}
+              showVideoToggle={isVideoLesson}
+              videoHidden={videoHidden}
+              onToggleVideoHidden={toggleVideoHidden}
+              showCaptionsToggle={mode === 'normal' && !!onToggleHideCaptions}
+              captionsHidden={!!hideCaptions}
+              onToggleCaptions={onToggleHideCaptions}
+              showReset={mode === 'dictation' && !!onResetDictation}
+              onReset={onResetDictation}
+            />
+          </div>
         )}
 
         <div className="flex-1 min-h-0 flex overflow-hidden">

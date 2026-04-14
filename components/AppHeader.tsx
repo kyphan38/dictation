@@ -40,6 +40,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const modeMenuRef = useRef<HTMLDivElement | null>(null);
+  const modeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!modeMenuOpen) return;
@@ -85,6 +86,7 @@ export function AppHeader({
         <div className="mode-tabs-container">
           <div ref={modeMenuRef} className="relative">
             <button
+              ref={modeButtonRef}
               type="button"
               className="inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900/80 px-3 py-1.5 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-colors"
               aria-haspopup="menu"

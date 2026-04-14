@@ -40,43 +40,46 @@ export function PlayerControls({
   compact = false,
 }: PlayerControlsProps) {
   const buttonBase = compact
-    ? 'px-2.5 py-1.5 rounded-md text-xs'
+    ? 'px-2 py-1 rounded-md text-[11px]'
     : 'px-3 py-2 rounded-lg text-sm';
+  const ghostBase = compact
+    ? 'bg-transparent border border-transparent hover:bg-white/10 hover:border-white/15'
+    : 'bg-gray-800/90 hover:bg-gray-700';
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-2 font-sans text-sm font-medium tracking-wide text-gray-300 ${compact ? 'text-xs' : ''}`}>
+    <div className={`player-controls-row flex flex-wrap items-center justify-between gap-2 font-sans text-sm font-medium tracking-wide text-gray-300 ${compact ? 'text-xs' : ''}`}>
       <button
         onClick={onSpeedChange}
-        className={`flex items-center gap-1.5 ${buttonBase} bg-gray-800/90 hover:bg-gray-700 text-gray-300 transition-colors`}
+        className={`flex items-center gap-1 ${buttonBase} ${ghostBase} text-gray-300 transition-colors`}
         title="Playback speed"
       >
-        <Gauge className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} shrink-0 text-blue-400`} />
+        <Gauge className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} shrink-0 text-blue-400`} />
         <span className="tabular-nums">{playbackRate.toFixed(2)}x</span>
       </button>
 
       <button
         onClick={onPlayPause}
-        className={`${compact ? 'w-10 h-10' : 'w-12 h-12'} shrink-0 flex items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition-transform active:scale-95`}
+        className={`${compact ? 'w-9 h-9' : 'w-12 h-12'} shrink-0 flex items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition-transform active:scale-95`}
         title={isPlaying ? 'Pause' : 'Play'}
       >
         {isPlaying ? (
-          <Pause className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} fill-current`} />
+          <Pause className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} fill-current`} />
         ) : (
-          <Play className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} fill-current ml-0.5`} />
+          <Play className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} fill-current ml-0.5`} />
         )}
       </button>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         {showCaptionsToggle && onToggleCaptions && (
           <button
             type="button"
             onClick={onToggleCaptions}
-            className={`flex items-center gap-1.5 ${buttonBase} bg-gray-800/90 hover:bg-gray-700 text-gray-300 transition-colors`}
+            className={`flex items-center gap-1 ${buttonBase} ${ghostBase} text-gray-300 transition-colors`}
             title={captionsHidden ? 'Show captions' : 'Hide captions'}
           >
             {captionsHidden ? (
-              <EyeOff className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} shrink-0`} />
+              <EyeOff className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} shrink-0`} />
             ) : (
-              <Eye className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} shrink-0`} />
+              <Eye className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} shrink-0`} />
             )}
             <span className="hidden sm:inline">Captions</span>
           </button>
@@ -85,13 +88,13 @@ export function PlayerControls({
           <button
             type="button"
             onClick={onToggleVideoHidden}
-            className={`flex items-center gap-1.5 ${buttonBase} bg-gray-800/90 hover:bg-gray-700 text-gray-300 transition-colors`}
+            className={`flex items-center gap-1 ${buttonBase} ${ghostBase} text-gray-300 transition-colors`}
             title={videoHidden ? 'Show video' : 'Hide video'}
           >
             {videoHidden ? (
-              <VideoOff className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} shrink-0`} />
+              <VideoOff className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} shrink-0`} />
             ) : (
-              <Video className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} shrink-0`} />
+              <Video className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} shrink-0`} />
             )}
             <span className="hidden sm:inline">Video</span>
           </button>
@@ -100,26 +103,26 @@ export function PlayerControls({
           <button
             type="button"
             onClick={onReset}
-            className={`flex items-center gap-1.5 ${buttonBase} bg-gray-800/90 hover:bg-gray-700 text-gray-300 transition-colors`}
+            className={`flex items-center gap-1 ${buttonBase} ${ghostBase} text-gray-300 transition-colors`}
             title="Reset progress"
           >
-            <RotateCcw className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} shrink-0`} />
+            <RotateCcw className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} shrink-0`} />
             <span className="hidden sm:inline">Reset</span>
           </button>
         )}
         <button
           onClick={onLoopModeChange}
-          className={`${compact ? 'min-w-[6.75rem]' : 'min-w-[7.5rem]'} justify-center flex items-center gap-1.5 ${buttonBase} transition-colors ${
+          className={`${compact ? 'min-w-[6rem]' : 'min-w-[7.5rem]'} justify-center flex items-center gap-1 ${buttonBase} transition-colors ${
             loopMode !== 'none'
-              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-              : 'bg-gray-800/90 hover:bg-gray-700 text-gray-300'
+              ? 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/25'
+              : `${ghostBase} text-gray-300`
           }`}
           title="Loop (L)"
         >
           {loopMode === 'one' ? (
-            <Repeat1 className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} shrink-0`} />
+            <Repeat1 className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} shrink-0`} />
           ) : (
-            <Repeat className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} shrink-0`} />
+            <Repeat className={`${compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} shrink-0`} />
           )}
           <span className="font-medium hidden sm:inline">{LOOP_MODE_LABELS[loopMode]}</span>
         </button>
