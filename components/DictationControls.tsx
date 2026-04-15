@@ -14,7 +14,7 @@ interface DictationControlsProps {
 }
 
 const spaceSlotClass =
-  'inline-block min-w-[0.55em] w-[0.55em] max-w-[0.55em] shrink-0 text-center align-baseline';
+  'inline-block min-w-[0.63em] w-[0.63em] max-w-[0.63em] shrink-0 text-center align-baseline';
 
 export function DictationControls({
   sentence,
@@ -26,6 +26,7 @@ export function DictationControls({
   onDictationRetry,
 }: DictationControlsProps) {
   const targetNorm = normalizeDictationTarget(sentence.text);
+  const inputNorm = normalizeDictationTarget(dictationInput, { preserveTrailingSpace: true });
 
   if (isCompleted) {
     return (
@@ -62,14 +63,43 @@ export function DictationControls({
   return (
     <div className="flex flex-col gap-3">
       <div
-        className="min-w-0 pl-[calc(1rem+1px)] font-mono text-sm leading-relaxed tracking-wide text-gray-500"
+        className="min-w-0 pl-4 font-mono text-lg leading-normal tracking-wide"
         aria-hidden
       >
-        {targetNorm.split('').map((ch, i) => (
-          <span key={i} className={ch === ' ' ? spaceSlotClass : 'inline-block align-baseline'}>
-            {ch === ' ' ? '\u00a0' : '*'}
-          </span>
-        ))}
+        {targetNorm.split('').map((ch, i) => {
+          const typed = i < inputNorm.length ? inputNorm[i] : undefined;
+          const slotClass = ch === ' ' ? spaceSlotClass : 'inline-block align-baseline';
+
+          if (ch === ' ') {
+            return (
+              <span key={i} className={`${slotClass} text-gray-500`}>
+                {'\u00a0'}
+              </span>
+            );
+          }
+
+          if (typed === undefined) {
+            return (
+              <span key={i} className={`${slotClass} text-gray-500`}>
+                {'*'}
+              </span>
+            );
+          }
+
+          if (typed === ch) {
+            return (
+              <span key={i} className={`${slotClass} whitespace-pre text-emerald-500`}>
+                {'*'}
+              </span>
+            );
+          }
+
+          return (
+            <span key={i} className={`${slotClass} text-red-500`}>
+              {'*'}
+            </span>
+          );
+        })}
       </div>
       {isActive && (
         <input
@@ -80,7 +110,7 @@ export function DictationControls({
           onChange={(e) => onDictationChange(sentence, e.target.value)}
           onKeyDown={(e) => onDictationKeyDown(e, sentence)}
           onClick={(e) => e.stopPropagation()}
-          className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-gray-200 font-mono text-lg leading-normal focus:outline-none focus:border-emerald-500 placeholder:text-gray-600"
+          className="w-full rounded-lg border border-gray-700 bg-gray-950 px-4 py-3 font-mono text-lg leading-normal tracking-wide text-gray-200 placeholder:text-gray-600 focus:border-emerald-500 focus:outline-none"
           placeholder="Type what you hear... (Tab for hint, Ctrl to replay)"
           autoComplete="off"
           spellCheck="false"
