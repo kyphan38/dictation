@@ -59,10 +59,10 @@ export function TranscriptSentence({
       data-index={index}
       onClick={() => onSentenceClick(sentence)}
       className={`
-        group flex items-baseline gap-4 px-3 py-5 mb-3 rounded-xl cursor-pointer transition-all duration-200
+        group flex cursor-pointer items-baseline gap-4 rounded-xl px-3 py-4 mb-2.5 transition-all duration-200
         ${
           isActive
-            ? 'bg-emerald-400/10 border border-emerald-400/30 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.12)]'
+            ? 'border border-emerald-400/30 bg-emerald-400/10 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.12)]'
             : 'hover:bg-gray-800 border border-transparent'
         }
       `}
@@ -157,7 +157,7 @@ function NormalMode({
       <p
         ref={textRef}
         className={`
-          font-sans text-lg leading-loose
+          font-sans text-lg leading-relaxed
           ${
             isActive
               ? 'text-emerald-400 font-medium text-xl'

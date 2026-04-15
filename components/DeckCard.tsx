@@ -89,18 +89,16 @@ export function DeckCard({
     setIsRenaming(false);
   };
 
-  const kebabAlwaysVisible = menuOpen || selectedItemId === deck.id;
-
   return (
     <div
       data-sidebar-item={deck.id}
       onClick={() => {
         if (!isRenaming) onItemSelect(deck);
       }}
-      className={`relative ml-2 rounded-lg cursor-pointer transition-colors duration-200 group deck-card ${
+      className={`deck-card group relative ml-2 cursor-pointer rounded-md border-l-2 transition-colors duration-200 ${
         selectedItemId === deck.id
-          ? 'active bg-emerald-500/10 border border-emerald-500'
-          : 'hover:bg-gray-800/50 border border-transparent'
+          ? 'active border-l-emerald-500 bg-gray-800/50'
+          : 'border-l-transparent hover:bg-gray-800/50'
       }`}
     >
       <div className="flex items-center gap-2 min-w-0 px-2 py-1.5">
@@ -127,15 +125,19 @@ export function DeckCard({
           </form>
         ) : (
           <>
-            <h4 className="font-medium text-gray-200 text-xs truncate min-w-0 flex-1" title={deck.name}>
+            <h4 className="min-w-0 flex-1 truncate text-xs font-medium text-gray-200" title={deck.name}>
               {deck.name}
             </h4>
-            <span className="flex items-center gap-0.5 text-xs text-gray-500 tabular-nums shrink-0">
-              <CheckCircle2
-                size={11}
-                className={deck.progress === 100 ? 'text-green-400' : 'text-gray-600'}
-              />
-              {deck.progress}%
+            <span className="flex min-w-[1.25rem] shrink-0 items-center justify-end tabular-nums">
+              {deck.progress === 0 ? null : deck.progress === 100 ? (
+                <span title="Deck complete" className="inline-flex" role="img" aria-label="Deck complete">
+                  <CheckCircle2 size={14} className="shrink-0 text-green-400" aria-hidden />
+                </span>
+              ) : (
+                <span className="text-[11px] text-gray-500" title={`Progress: ${deck.progress}%`}>
+                  {deck.progress}%
+                </span>
+              )}
             </span>
             <div className="relative shrink-0">
               <button
@@ -145,12 +147,10 @@ export function DeckCard({
                   e.stopPropagation();
                   setActiveMenu(activeMenu === deck.id ? null : deck.id);
                 }}
-                className={`p-0.5 rounded transition-colors ${
+                className={`rounded p-0.5 transition-colors ${
                   menuOpen
                     ? 'bg-gray-700 text-white opacity-100'
-                    : kebabAlwaysVisible
-                      ? 'text-gray-400 hover:text-white opacity-100'
-                      : 'text-gray-500 hover:text-white opacity-100 md:opacity-0 md:group-hover:opacity-100'
+                    : 'text-gray-400 opacity-100 hover:text-white max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100'
                 }`}
                 aria-label="Deck actions"
               >
@@ -250,12 +250,6 @@ export function DeckCard({
             </div>
           </>
         )}
-      </div>
-      <div className="h-0.5 bg-gray-800/80 mx-2 mb-1 rounded-full overflow-hidden">
-        <div
-          className={`h-full ${deck.progress === 100 ? 'bg-green-500/90' : 'bg-emerald-500/80'}`}
-          style={{ width: `${deck.progress}%` }}
-        />
       </div>
     </div>
   );

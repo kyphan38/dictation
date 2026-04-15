@@ -99,18 +99,16 @@ export function LessonCard({
     setIsRenaming(false);
   };
 
-  const kebabAlwaysVisible = menuOpen || selectedItemId === lesson.id;
-
   return (
     <div
       data-sidebar-item={lesson.id}
       onClick={() => {
         if (!isRenaming) onItemSelect(lesson);
       }}
-      className={`relative ml-2 rounded-lg cursor-pointer transition-colors duration-200 group lesson-card ${
+      className={`lesson-card group relative ml-2 cursor-pointer rounded-md border-l-2 transition-colors duration-200 ${
         selectedItemId === lesson.id
-          ? 'active bg-emerald-500/10 border border-emerald-500'
-          : 'hover:bg-gray-800/50 border border-transparent'
+          ? 'active border-l-emerald-500 bg-gray-800/50'
+          : 'border-l-transparent hover:bg-gray-800/50'
       }`}
     >
       <div className="flex items-center gap-2 min-w-0 px-2 py-1.5">
@@ -137,28 +135,34 @@ export function LessonCard({
           </form>
         ) : (
           <>
+            <span className="shrink-0 text-gray-500" aria-hidden title={lesson.mediaType === 'video' ? 'Video' : 'Audio'}>
+              {lesson.mediaType === 'video' ? (
+                <Video size={12} className="shrink-0" />
+              ) : (
+                <Music2 size={12} className="shrink-0" />
+              )}
+            </span>
             <h4
-              className="font-medium text-gray-200 text-xs truncate min-w-0 flex-1"
+              className="min-w-0 flex-1 truncate text-xs font-medium text-gray-200"
               title={lesson.name}
             >
               {lesson.name}
               {!lesson.hasMedia && (
-                <span title="Media file missing" className="inline-flex align-middle ml-0.5">
-                  <AlertTriangle size={11} className="inline text-amber-500 shrink-0" />
+                <span title="Media file missing" className="ml-0.5 inline-flex align-middle">
+                  <AlertTriangle size={11} className="inline shrink-0 text-amber-500" />
                 </span>
               )}
             </h4>
-            <span className="flex items-center gap-0.5 text-xs text-gray-500 tabular-nums shrink-0">
-              {lesson.mediaType === 'video' ? (
-                <Video size={11} className="text-gray-500 shrink-0" />
+            <span className="flex min-w-[1.25rem] shrink-0 items-center justify-end tabular-nums">
+              {lesson.progress === 0 ? null : lesson.progress === 100 ? (
+                <span title="Lesson complete" className="inline-flex" role="img" aria-label="Lesson complete">
+                  <CheckCircle2 size={14} className="shrink-0 text-green-400" aria-hidden />
+                </span>
               ) : (
-                <Music2 size={11} className="text-gray-500 shrink-0" />
+                <span className="text-[11px] text-gray-500" title={`Progress: ${lesson.progress}%`}>
+                  {lesson.progress}%
+                </span>
               )}
-              <CheckCircle2
-                size={11}
-                className={lesson.progress === 100 ? 'text-green-400' : 'text-gray-600'}
-              />
-              {lesson.progress}%
             </span>
             <div className="relative shrink-0">
               <button
@@ -168,12 +172,10 @@ export function LessonCard({
                   e.stopPropagation();
                   setActiveMenu(activeMenu === lesson.id ? null : lesson.id);
                 }}
-                className={`p-0.5 rounded transition-colors ${
+                className={`rounded p-0.5 transition-colors ${
                   menuOpen
                     ? 'bg-gray-700 text-white opacity-100'
-                    : kebabAlwaysVisible
-                      ? 'text-gray-400 hover:text-white opacity-100'
-                      : 'text-gray-500 hover:text-white opacity-100 md:opacity-0 md:group-hover:opacity-100'
+                    : 'text-gray-400 opacity-100 hover:text-white max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100'
                 }`}
                 aria-label="Lesson actions"
               >
@@ -274,12 +276,6 @@ export function LessonCard({
             </div>
           </>
         )}
-      </div>
-      <div className="h-0.5 bg-gray-800/80 mx-2 mb-1 rounded-full overflow-hidden">
-        <div
-          className={`h-full ${lesson.progress === 100 ? 'bg-green-500/90' : 'bg-emerald-500/80'}`}
-          style={{ width: `${lesson.progress}%` }}
-        />
       </div>
     </div>
   );

@@ -51,7 +51,7 @@ export function Transcript({
     <div className="flex-1 min-h-0 bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-3 md:p-4 space-y-2 scroll-smooth"
+        className="flex-1 overflow-y-auto scroll-smooth p-3 md:p-4 space-y-2"
       >
         {transcript.map((sentence, index) => {
           const isActive = currentTime >= sentence.start && currentTime < sentence.end;

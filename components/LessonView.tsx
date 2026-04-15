@@ -91,7 +91,6 @@ export function LessonView({
   const [seekDisabled, setSeekDisabled] = useState(false);
   const [videoHidden, setVideoHidden] = useState(false);
   const [hevcWarning, setHevcWarning] = useState(false);
-  const [videoHovered, setVideoHovered] = useState(false);
   const pendingToggleRestoreRef = React.useRef<{
     time: number;
     wasPlaying: boolean;
@@ -113,8 +112,6 @@ export function LessonView({
   const isVideoLesson = mediaType === 'video' && !!mediaURL;
   const videoLayout = isVideoLesson && !isMobile;
   const showVideoStage = videoLayout && !videoHidden;
-  const showOverlayControls = !videoHidden && (!isPlaying || videoHovered);
-  const renderPanelPlayer = !videoLayout || videoHidden;
 
   useEffect(() => {
     setVideoHidden(false);
@@ -183,12 +180,6 @@ export function LessonView({
       const restore = pendingToggleRestoreRef.current;
       if (!restore) return;
 
-      const before = {
-        currentTime: media.currentTime,
-        paused: media.paused,
-        playbackRate: media.playbackRate,
-      };
-
       if (Number.isFinite(restore.rate) && Math.abs(media.playbackRate - restore.rate) > 0.001) {
         media.playbackRate = restore.rate;
       }
@@ -217,7 +208,7 @@ export function LessonView({
   };
 
   return (
-    <div className={`flex flex-col flex-1 min-h-0 ${videoLayout ? 'gap-2' : 'gap-3'}`}>
+    <div className={`flex flex-col flex-1 min-h-0 ${videoLayout ? 'gap-4' : 'gap-3'}`}>
       {isVideoLesson && isMobile && mediaURL && (
         <p className="text-xs text-gray-400 text-center px-2 shrink-0">
           Video is hidden on small screens; audio and transcript still work.
@@ -247,11 +238,7 @@ export function LessonView({
       )}
 
       {mediaURL && isVideoLesson && !isMobile && showVideoStage && (
-        <div
-          className="relative shrink-0"
-          onMouseEnter={() => setVideoHovered(true)}
-          onMouseLeave={() => setVideoHovered(false)}
-        >
+        <div className="relative shrink-0">
           <VideoPane
             ref={mediaRef as React.RefObject<HTMLVideoElement>}
             src={mediaURL}
@@ -261,38 +248,9 @@ export function LessonView({
             onPlay={mediaEvents.onPlay}
             onPause={mediaEvents.onPause}
           />
-          <div
-            className={`absolute inset-x-0 bottom-0 transition-opacity duration-300 ${
-              showOverlayControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
-          >
-            <div className="px-2.5 pb-1.5 pt-3 bg-gradient-to-t from-black/85 via-black/25 to-transparent rounded-b-xl">
-              <MemoPlayer
-                isPlaying={isPlaying}
-                duration={duration}
-                currentTime={currentTime}
-                playbackRate={playbackRate}
-                loopMode={loopMode}
-                onPlayPause={onPlayPause}
-                onSeek={onSeek}
-                onSpeedChange={onSpeedChange}
-                onLoopModeChange={onLoopModeChange}
-                seekDisabled={seekDisabled}
-                showVideoToggle
-                videoHidden={videoHidden}
-                onToggleVideoHidden={toggleVideoHidden}
-                showCaptionsToggle={mode === 'normal' && !!onToggleHideCaptions}
-                captionsHidden={!!hideCaptions}
-                onToggleCaptions={onToggleHideCaptions}
-                showReset={mode === 'dictation' && !!onResetDictation}
-                onReset={onResetDictation}
-                variant="overlay"
-              />
-            </div>
-          </div>
           {hevcWarning && (
             <div
-              className="absolute inset-0 flex items-center justify-center bg-black/75 text-xs text-amber-200 px-3 text-center pointer-events-none rounded-xl"
+              className="absolute inset-0 flex items-center justify-center bg-slate-950/80 text-xs text-amber-200 px-3 text-center pointer-events-none rounded-2xl"
               role="status"
             >
               This file may not decode as video on this browser (e.g. HEVC). Audio still plays.
@@ -305,8 +263,8 @@ export function LessonView({
         <audio ref={mediaRef} src={mediaURL} className="hidden" {...mediaEvents} loop={false} />
       )}
 
-      <div className={renderPanelPlayer ? 'flex flex-col flex-1 min-h-0 gap-3' : 'flex flex-col flex-1 min-h-0'}>
-        {renderPanelPlayer && (
+      <div className={`flex flex-col flex-1 min-h-0 ${mediaURL ? 'gap-4' : ''}`}>
+        {mediaURL && (
           <div>
             <MemoPlayer
               isPlaying={isPlaying}

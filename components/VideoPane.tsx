@@ -20,8 +20,8 @@ export const VideoPane = forwardRef<HTMLVideoElement, VideoPaneProps>(function V
     <div
       className={
         videoHidden
-          ? 'relative w-full max-w-4xl mx-auto h-14 bg-black/70 rounded-xl border border-gray-800 overflow-hidden shrink-0'
-          : 'relative w-full max-w-4xl mx-auto bg-black rounded-xl border border-gray-800 overflow-hidden shrink-0 max-h-[38vh] min-h-[180px] aspect-video'
+          ? 'relative w-full max-w-4xl mx-auto h-14 bg-slate-900/90 rounded-2xl border border-gray-800 overflow-hidden shrink-0'
+          : 'relative w-full max-w-4xl mx-auto bg-slate-900 rounded-2xl border border-gray-800 overflow-hidden shrink-0 max-h-[35vh] min-h-[180px] aspect-video'
       }
     >
       <video
