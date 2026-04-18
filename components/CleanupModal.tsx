@@ -3,10 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PartyPopper } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface CleanupModalProps {
   isOpen: boolean;
   onKeep: () => void;
+  /** Escape/backdrop: when set, used instead of onKeep (e.g. deck close without persisting completion choice). */
+  onDismiss?: () => void;
   onRemoveAudio?: () => void | Promise<void>;
   onDeleteDeck?: () => void | Promise<void>;
   variant?: 'lesson' | 'deck';
@@ -15,71 +18,141 @@ interface CleanupModalProps {
 export function CleanupModal({
   isOpen,
   onKeep,
+  onDismiss,
   onRemoveAudio,
   onDeleteDeck,
   variant = 'lesson',
 }: CleanupModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [confirmPhrase, setConfirmPhrase] = useState('');
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (isOpen) setConfirmPhrase('');
+  }, [isOpen]);
+
+  const dismissOverlay = onDismiss ?? onKeep;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') dismissOverlay();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, dismissOverlay]);
+
   if (!isOpen || !mounted) return null;
 
   const isDeck = variant === 'deck';
+  const destructiveDisabled = confirmPhrase !== 'Delete';
 
   const content = (
-    <div className="fixed inset-0 bg-black/80 z-[190] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
+    <div
+      role="presentation"
+      className="app-modal-backdrop fixed inset-0 bg-black/80 z-[190] flex items-center justify-center p-4 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) dismissOverlay();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="noda-cleanup-title"
+        className="app-modal-panel bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
           <PartyPopper className="w-8 h-8 text-emerald-500" />
         </div>
         {isDeck ? (
           <>
-            <h3 className="text-xl font-bold text-white mb-2">Deck complete!</h3>
-            <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+            <h3 id="noda-cleanup-title" className="text-xl font-bold text-white mb-2">
+              Deck complete!
+            </h3>
+            <p className="text-gray-400 mb-4 text-sm leading-relaxed">
               You&apos;ve reviewed all cards in this deck. Delete it from this device to free space?
             </p>
+            <div className="mb-4 grid gap-2 text-left">
+              <label htmlFor="noda-cleanup-deck-confirm" className="text-sm text-gray-300">
+                Type <span className="font-mono font-semibold text-white">Delete</span> to enable removal
+              </label>
+              <input
+                id="noda-cleanup-deck-confirm"
+                autoComplete="off"
+                autoFocus
+                value={confirmPhrase}
+                onChange={(e) => setConfirmPhrase(e.target.value)}
+                placeholder="Delete"
+                aria-invalid={confirmPhrase.length > 0 && confirmPhrase !== 'Delete'}
+                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              />
+            </div>
             <div className="flex flex-col gap-3">
-              <button
+              <Button
                 type="button"
+                variant="danger"
+                className="h-auto w-full justify-center rounded-xl py-3 text-base font-medium"
+                disabled={destructiveDisabled}
                 onClick={() => void onDeleteDeck?.()}
-                className="w-full px-4 py-3 rounded-xl bg-red-600/90 hover:bg-red-500 text-white font-medium transition-colors active:scale-[0.98]"
               >
                 Delete deck
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
+                className="h-auto w-full justify-center rounded-xl py-3 text-base font-medium"
                 onClick={onKeep}
-                className="w-full px-4 py-3 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 font-medium transition-colors active:scale-[0.98]"
               >
                 Keep deck
-              </button>
+              </Button>
             </div>
           </>
         ) : (
           <>
-            <h3 className="text-xl font-bold text-white mb-2">Dictation complete!</h3>
-            <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+            <h3 id="noda-cleanup-title" className="text-xl font-bold text-white mb-2">
+              Dictation complete!
+            </h3>
+            <p className="text-gray-400 mb-4 text-sm leading-relaxed">
               You&apos;ve mastered all sentences in this lesson. Remove this lesson from this device to free space?
               Transcript and progress will be deleted from this browser.
             </p>
+            <div className="mb-4 grid gap-2 text-left">
+              <label htmlFor="noda-cleanup-lesson-confirm" className="text-sm text-gray-300">
+                Type <span className="font-mono font-semibold text-white">Delete</span> to enable removal
+              </label>
+              <input
+                id="noda-cleanup-lesson-confirm"
+                autoComplete="off"
+                autoFocus
+                value={confirmPhrase}
+                onChange={(e) => setConfirmPhrase(e.target.value)}
+                placeholder="Delete"
+                aria-invalid={confirmPhrase.length > 0 && confirmPhrase !== 'Delete'}
+                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              />
+            </div>
             <div className="flex flex-col gap-3">
-              <button
+              <Button
                 type="button"
+                variant="default"
+                className="h-auto w-full justify-center rounded-xl py-3 text-base font-medium"
+                disabled={destructiveDisabled}
                 onClick={() => void onRemoveAudio?.()}
-                className="w-full px-4 py-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-medium transition-colors active:scale-[0.98]"
               >
                 Remove lesson
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
+                className="h-auto w-full justify-center rounded-xl py-3 text-base font-medium"
                 onClick={onKeep}
-                className="w-full px-4 py-3 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 font-medium transition-colors active:scale-[0.98]"
               >
                 Keep files
-              </button>
+              </Button>
             </div>
           </>
         )}

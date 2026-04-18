@@ -255,21 +255,30 @@ function StatusBar({
   if (appMode === 'shadowing') {
     return (
       <div ref={statusRef} className="shrink-0 flex flex-row flex-wrap items-center justify-end gap-2 self-center max-w-[min(100%,280px)]">
-        {isActive && isPlaying && (
-          <Play className="w-5 h-5 text-emerald-400 fill-current animate-pulse shrink-0 pointer-events-none" aria-hidden />
-        )}
-        {isActive && !isPlaying && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSentenceClick(sentence);
-            }}
-            className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-emerald-400 transition-colors shrink-0"
-            title="Replay sentence from the start"
+        {isActive && (
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center"
+            aria-hidden={isPlaying}
           >
-            <Play className="w-5 h-5 fill-current ml-0.5" />
-          </button>
+            {isPlaying ? (
+              <Play
+                className="h-5 w-5 shrink-0 fill-current text-emerald-400 animate-pulse pointer-events-none"
+                aria-hidden
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSentenceClick(sentence);
+                }}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-800 text-emerald-400 transition-colors hover:bg-gray-700"
+                title="Replay sentence from the start"
+              >
+                <Play className="h-5 w-5 shrink-0 fill-current" />
+              </button>
+            )}
+          </div>
         )}
         {isPast && !isActive && <CheckCircle2 className="w-5 h-5 text-gray-600 shrink-0" />}
         {isActive && !isCompleted && !spokenResult && (
@@ -279,10 +288,10 @@ function StatusBar({
               e.stopPropagation();
               onSkip(sentence);
             }}
-            className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-400 transition-colors shrink-0"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-800 text-gray-400 transition-colors hover:bg-gray-700"
             title="Skip this sentence"
           >
-            <FastForward className="w-4 h-4" />
+            <FastForward className="h-4 w-4 shrink-0" />
           </button>
         )}
         {isActive && !isCompleted && spokenResult && !recognitionError && (
@@ -311,14 +320,14 @@ function StatusBar({
             e.stopPropagation();
             onToggleRecording(sentence);
           }}
-          className={`p-2 rounded-full transition-colors shrink-0 ${
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
             isRecording === sentence.id
               ? 'bg-red-500/20 text-red-400'
               : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
           }`}
           title={isRecording === sentence.id ? 'Stop recording' : 'Start recording'}
         >
-          {isRecording === sentence.id ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+          {isRecording === sentence.id ? <Mic className="h-4 w-4 shrink-0" /> : <MicOff className="h-4 w-4 shrink-0" />}
         </button>
       </div>
     );

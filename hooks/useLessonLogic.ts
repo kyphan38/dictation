@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getFirebaseAuth } from '@/lib/auth/firebase-client';
-import { Sentence, AppMode, ExpandedSections } from '@/types';
-import { DEFAULT_APP_MODE, SAVE_PROGRESS_DELAY_MS } from '@/constants';
+import { AppMode, ExpandedSections } from '@/types';
+import { DEFAULT_APP_MODE, DICTATION_SAVE_DEBOUNCE_MS, SAVE_PROGRESS_DELAY_MS } from '@/constants';
 import { parseTranscript, uniquifyName, flashcardDeckProgressPercent } from '@/lib/utils';
 import {
   deleteLessonFirestore,
@@ -61,6 +61,7 @@ export function useLessonLogic(
 
   const appModeRef = useRef<AppMode>(appMode);
   const completedSentencesRef = useRef<Record<number, boolean>>(completedSentences);
+  const dictationInputsRef = useRef<Record<number, string>>({});
 
   useEffect(() => {
     appModeRef.current = appMode;
@@ -69,6 +70,10 @@ export function useLessonLogic(
   useEffect(() => {
     completedSentencesRef.current = completedSentences;
   }, [completedSentences]);
+
+  useEffect(() => {
+    dictationInputsRef.current = dictationInputs;
+  }, [dictationInputs]);
 
   const transcript = useMemo(() => parseTranscript(transcriptText), [transcriptText]);
 
@@ -152,6 +157,7 @@ export function useLessonLogic(
   }, [mapLessonsToRows]);
 
   const progressSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dictationSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!currentLessonId || !isStarted) {
@@ -179,6 +185,34 @@ export function useLessonLogic(
     };
   }, [completedSentences, currentLessonId, isStarted]);
 
+  useEffect(() => {
+    if (!currentLessonId || !isStarted) {
+      if (dictationSaveTimeoutRef.current) {
+        clearTimeout(dictationSaveTimeoutRef.current);
+        dictationSaveTimeoutRef.current = null;
+      }
+      return;
+    }
+    if (dictationSaveTimeoutRef.current) {
+      clearTimeout(dictationSaveTimeoutRef.current);
+      dictationSaveTimeoutRef.current = null;
+    }
+    dictationSaveTimeoutRef.current = setTimeout(() => {
+      dictationSaveTimeoutRef.current = null;
+      updateLessonProgressFirestore(currentLessonId, completedSentencesRef.current, {
+        dictationInputs: dictationInputsRef.current,
+      }).catch((error) => {
+        console.error('Failed to persist dictation draft', error);
+      });
+    }, DICTATION_SAVE_DEBOUNCE_MS);
+    return () => {
+      if (dictationSaveTimeoutRef.current) {
+        clearTimeout(dictationSaveTimeoutRef.current);
+        dictationSaveTimeoutRef.current = null;
+      }
+    };
+  }, [dictationInputs, currentLessonId, isStarted]);
+
   /** Cancel debounced progress save and persist latest progress so a later put cannot resurrect cleared audio. */
   const prepareForLessonMediaClear = useCallback(
     async (lessonId: string) => {
@@ -186,9 +220,15 @@ export function useLessonLogic(
         clearTimeout(progressSaveTimeoutRef.current);
         progressSaveTimeoutRef.current = null;
       }
+      if (dictationSaveTimeoutRef.current) {
+        clearTimeout(dictationSaveTimeoutRef.current);
+        dictationSaveTimeoutRef.current = null;
+      }
       const active = currentLessonIdRef.current === lessonId || currentLessonId === lessonId;
       if (active && isStarted) {
-        await updateLessonProgressFirestore(lessonId, completedSentencesRef.current);
+        await updateLessonProgressFirestore(lessonId, completedSentencesRef.current, {
+          dictationInputs: dictationInputsRef.current,
+        });
       }
     },
     [currentLessonId, isStarted]
@@ -215,6 +255,12 @@ export function useLessonLogic(
 
         setTranscriptText(lesson.transcriptText);
         setCompletedSentences(lesson.completedSentences || {});
+        const rawDraft = lesson.dictationInputs ?? {};
+        setDictationInputs(
+          Object.fromEntries(
+            Object.entries(rawDraft).map(([k, v]) => [Number(k), v])
+          ) as Record<number, string>
+        );
         const hasTranscript = !!(lesson.transcriptText && lesson.transcriptText.trim());
         setIsStarted(!!lesson.mediaUrl || hasTranscript);
         setAppMode('normal');
@@ -241,6 +287,7 @@ export function useLessonLogic(
     setMediaURL(null);
     setTranscriptText('');
     setCompletedSentences({});
+    setDictationInputs({});
     setIsStarted(false);
     setAppMode('normal');
     if (window.innerWidth < 768) setIsSidebarOpen(false);
@@ -302,6 +349,7 @@ export function useLessonLogic(
         mediaType: inferredMediaType,
         transcriptText,
         completedSentences: {},
+        dictationInputs: {},
         totalSentences: sentences.length,
         createdAt: now,
         lastAccessed: now,

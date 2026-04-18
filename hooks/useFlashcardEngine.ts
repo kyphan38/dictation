@@ -1,16 +1,51 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { shuffleFullIndices } from '@/lib/flashcard-shuffle';
 
-export type FlashcardRating = 'again' | 'hard' | 'good' | 'easy' | 'done';
+export type FlashcardRating = 'again' | 'good' | 'done';
 
-function shuffleIndices(n: number): number[] {
-  const a = Array.from({ length: n }, (_, i) => i);
-  for (let i = n - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+/** Snapshot from Firestore used to rebuild queue (excludes `done` indices). */
+export type FlashcardHydrate = {
+  ratings: Record<number, FlashcardRating>;
+  isShuffled: boolean;
+  shuffledIndices: number[];
+  /** When true, do not open the post-completion modal (user chose Keep last time). Cleared on deck reset. */
+  completionModalShown?: boolean;
+};
+
+function isPermutationOfIndices(saved: number[], n: number): boolean {
+  if (saved.length !== n) return false;
+  const seen = new Set<number>();
+  for (const x of saved) {
+    if (!Number.isInteger(x) || x < 0 || x >= n || seen.has(x)) return false;
+    seen.add(x);
   }
-  return a;
+  return seen.size === n;
+}
+
+function buildInitialOrder(
+  n: number,
+  shuffleMode: boolean,
+  hydrate: FlashcardHydrate | null,
+): number[] {
+  if (n === 0) return [];
+  const ratings = hydrate?.ratings ?? {};
+  const active = Array.from({ length: n }, (_, i) => i).filter((i) => ratings[i] !== 'done');
+  if (active.length === 0) return [];
+
+  if (!shuffleMode) {
+    return active;
+  }
+
+  const saved = hydrate?.shuffledIndices ?? [];
+  if (isPermutationOfIndices(saved, n)) {
+    const filtered = saved.filter((i) => ratings[i] !== 'done');
+    if (filtered.length === active.length) return filtered;
+  }
+
+  const shuffled = shuffleFullIndices(active.length);
+  return shuffled.map((j) => active[j]!);
 }
 
 function isTypingInField(): boolean {
@@ -26,21 +61,29 @@ function isTypingInField(): boolean {
 export function useFlashcardEngine(
   initialLines: string[],
   onComplete: () => void,
-  options?: { onRate?: (lineIndex: number, rating: FlashcardRating) => void }
+  options?: {
+    onRate?: (lineIndex: number, rating: FlashcardRating) => void;
+    /** When set, queue excludes indices with `ratings[i] === 'done'` and may restore shuffle order from `shuffledIndices`. */
+    hydrate?: FlashcardHydrate | null;
+  },
 ) {
   const [lines, setLines] = useState<string[]>([]);
   const [order, setOrder] = useState<number[]>([]);
-  const [isShuffle, setIsShuffle] = useState(false);
+  const [isShuffle, setIsShuffle] = useState(() => options?.hydrate?.isShuffled ?? false);
   const [flashedButton, setFlashedButton] = useState<string | null>(null);
 
   const orderRef = useRef<number[]>([]);
   const linesRef = useRef<string[]>([]);
   const onCompleteRef = useRef(onComplete);
   const onRateRef = useRef(options?.onRate);
+  const hydrateRef = useRef(options?.hydrate ?? null);
   const completeFiredRef = useRef(false);
+  /** Tracks last queue length so we only fire onComplete on transition from >0 cards to 0 (not on mount at 100%). */
+  const prevOrderLenRef = useRef<number | null>(null);
 
   onCompleteRef.current = onComplete;
   onRateRef.current = options?.onRate;
+  hydrateRef.current = options?.hydrate ?? null;
 
   useEffect(() => {
     orderRef.current = order;
@@ -52,12 +95,13 @@ export function useFlashcardEngine(
 
   useEffect(() => {
     completeFiredRef.current = false;
+    prevOrderLenRef.current = null;
     const cleaned = initialLines.map((l) => l.trim()).filter((l) => l.length > 0);
     setLines(cleaned);
     const n = cleaned.length;
-    const ord = n === 0 ? [] : isShuffle ? shuffleIndices(n) : Array.from({ length: n }, (_, i) => i);
+    const ord = buildInitialOrder(n, isShuffle, hydrateRef.current);
     setOrder(ord);
-  }, [initialLines, isShuffle]);
+  }, [initialLines, isShuffle, options?.hydrate]);
 
   const originalTotal = lines.length;
   const cardsRemaining = order.length;
@@ -77,10 +121,10 @@ export function useFlashcardEngine(
       if (rating === 'done') {
         return rest;
       }
-      if (rating === 'good' || rating === 'easy') {
+      if (rating === 'good') {
         return [...rest, idx];
       }
-      if (rating === 'again' || rating === 'hard') {
+      if (rating === 'again') {
         if (rest.length === 0) return [idx];
         return [rest[0]!, idx, ...rest.slice(1)];
       }
@@ -89,10 +133,22 @@ export function useFlashcardEngine(
   }, []);
 
   useEffect(() => {
-    if (originalTotal > 0 && order.length === 0 && !completeFiredRef.current) {
+    if (originalTotal === 0) return;
+    const prev = prevOrderLenRef.current;
+    const curr = order.length;
+    if (prev === null) {
+      prevOrderLenRef.current = curr;
+      return;
+    }
+    if (prev > 0 && curr === 0 && !completeFiredRef.current) {
+      if (hydrateRef.current?.completionModalShown) {
+        prevOrderLenRef.current = curr;
+        return;
+      }
       completeFiredRef.current = true;
       onCompleteRef.current();
     }
+    prevOrderLenRef.current = curr;
   }, [order.length, originalTotal]);
 
   useEffect(() => {

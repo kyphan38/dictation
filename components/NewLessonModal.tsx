@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Music2, FileText, Loader2 } from 'lucide-react';
 import { isLessonNameTaken } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
 const MEDIA_MAX_BYTES = 200 * 1024 * 1024;
 const MEDIA_WARN_BYTES = 100 * 1024 * 1024;
@@ -66,6 +68,7 @@ export function NewLessonModal({
   const [mediaDrag, setMediaDrag] = useState(false);
   const [transcriptDrag, setTranscriptDrag] = useState(false);
   const [mediaNameConflict, setMediaNameConflict] = useState<string | null>(null);
+  const [formUploadError, setFormUploadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -78,10 +81,10 @@ export function NewLessonModal({
 
   const applyMediaFile = useCallback(
     (file: File) => {
+      setFormUploadError(null);
       if (file.size > MEDIA_MAX_BYTES) {
-        onNotify?.(
+        setFormUploadError(
           'File is too large (200MB max). Compress the video or extract audio before importing.',
-          'error'
         );
         return;
       }
@@ -93,11 +96,11 @@ export function NewLessonModal({
       }
 
       if (!isAcceptedLessonMedia(file)) {
-        onNotify?.('Invalid file. Supported: common audio formats, MP4, and WebM.', 'error');
+        setFormUploadError('Invalid file. Supported: common audio formats, MP4, and WebM.');
         return;
       }
       if (isExtensionMimeMismatch(file)) {
-        onNotify?.('File type does not match extension (e.g. use real MP4/WebM).', 'error');
+        setFormUploadError('File type does not match extension (e.g. use real MP4/WebM).');
         return;
       }
 
@@ -171,14 +174,30 @@ export function NewLessonModal({
       <div className="app-modal-panel relative bg-gray-800 rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-700/80">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">🎧 New Lesson</h2>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
+            className="text-gray-400 hover:text-white"
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-xl"
+            aria-label="Close"
           >
             ✕
-          </button>
+          </Button>
         </div>
+
+        {formUploadError ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTitle>Cannot add this file</AlertTitle>
+            <AlertDescription>{formUploadError}</AlertDescription>
+          </Alert>
+        ) : null}
+        {mediaNameConflict ? (
+          <Alert variant="warning" className="mb-4">
+            <AlertTitle>Name already in use</AlertTitle>
+            <AlertDescription>{mediaNameConflict}</AlertDescription>
+          </Alert>
+        ) : null}
 
         <div className={`space-y-6 ${isSaving ? 'pointer-events-none opacity-70' : ''}`}>
           <div>
@@ -190,6 +209,7 @@ export function NewLessonModal({
               onChange={(e) => {
                 setLessonName(e.target.value);
                 setMediaNameConflict(null);
+                setFormUploadError(null);
               }}
               autoCorrect="off"
               autoCapitalize="off"
@@ -231,7 +251,11 @@ export function NewLessonModal({
                 <Music2 size={40} />
               </div>
               <p className="text-lg font-medium text-white mb-1">Upload audio or video</p>
-              <p className="text-sm text-gray-400 mb-4">MP3, WAV, M4A, MP4, WebM — click or drop here</p>
+              <p className="text-sm text-gray-400 mb-2">MP3, WAV, M4A, MP4, WebM — click or drop here</p>
+              <p className="text-xs text-gray-500 mb-4 text-left max-w-md mx-auto leading-relaxed">
+                Up to 200MB. For large videos, export a lower resolution or audio-only (e.g. MP3) in
+                HandBrake, FFmpeg, or your editor so seeking stays smooth.
+              </p>
               <input
                 type="file"
                 accept="audio/*,video/mp4,video/webm,.mp4,.webm"
@@ -239,11 +263,6 @@ export function NewLessonModal({
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 disabled={isSaving}
               />
-              {mediaNameConflict && (
-                <p className="text-sm text-amber-400 relative z-10 px-2 mb-2" role="alert">
-                  {mediaNameConflict}
-                </p>
-              )}
               {mediaFile && !mediaNameConflict && (
                 <p className="text-emerald-500 font-medium relative z-10 pointer-events-none">✓ {mediaFile.name}</p>
               )}
@@ -281,13 +300,10 @@ export function NewLessonModal({
             </div>
           </div>
 
-          <button
+          <Button
             type="button"
-            className={`w-full py-4 rounded-xl font-bold text-lg transition-colors flex items-center justify-center gap-2 ${
-              mediaFile && lessonName && !isSaving
-                ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-            }`}
+            variant="default"
+            className="h-auto w-full justify-center gap-2 rounded-xl py-4 text-lg font-bold"
             disabled={!mediaFile || !lessonName || isSaving}
             onClick={() => void handleSubmit()}
           >
@@ -299,7 +315,7 @@ export function NewLessonModal({
             ) : (
               'Create'
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

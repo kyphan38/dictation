@@ -17,10 +17,12 @@ import { getFirebaseAuth, getFirebaseFirestore, getFirebaseStorage } from '@/lib
 
 export interface FlashcardData {
   lines: string[];
-  ratings: Record<number, 'again' | 'hard' | 'good' | 'easy' | 'done'>;
+  ratings: Record<number, 'again' | 'good' | 'done'>;
   currentIndex: number;
   isShuffled: boolean;
   shuffledIndices: number[];
+  /** After "Deck complete" → Keep, suppresses the cleanup modal until progress is reset. */
+  completionModalShown?: boolean;
 }
 
 /** Full lesson row stored in IndexedDB (includes File blob when present). */
@@ -45,6 +47,8 @@ export interface LessonRecord {
   mediaType?: 'audio' | 'video';
   transcriptText: string;
   completedSentences: Record<number, boolean>;
+  /** Dictation mode drafts (sentence id → input); optional for older documents. */
+  dictationInputs?: Record<number, string>;
   totalSentences: number;
   createdAt: number;
   lastAccessed: number;
@@ -85,9 +89,24 @@ export const getUserMediaCollectionPath = (uid: string): string => `users/${uid}
 const getLessonDocRef = (uid: string, lessonId: string) =>
   doc(getFirebaseFirestore(), getUserLessonsCollectionPath(uid), lessonId);
 
+/** Firestore rejects `undefined` anywhere in document data (e.g. `trashedAt: undefined`). */
+function stripUndefinedForFirestore<T>(input: T): T {
+  if (input === null || typeof input !== 'object') return input;
+  if (input instanceof Date) return input;
+  if (Array.isArray(input)) {
+    return input.map((x) => stripUndefinedForFirestore(x)) as T;
+  }
+  const out = {} as Record<string, unknown>;
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    if (v === undefined) continue;
+    out[k] = stripUndefinedForFirestore(v);
+  }
+  return out as T;
+}
+
 const toFirestoreLessonRecord = (lesson: LessonRecord): FirestoreLessonRecord => {
   const { mediaFile: _mediaFile, ...lessonWithoutBlob } = lesson;
-  return lessonWithoutBlob;
+  return stripUndefinedForFirestore(lessonWithoutBlob) as FirestoreLessonRecord;
 };
 
 const fromFirestoreLessonRecord = (
@@ -108,6 +127,7 @@ const fromFirestoreLessonRecord = (
     mediaType: data.mediaType ?? 'audio',
     transcriptText: data.transcriptText ?? '',
     completedSentences: data.completedSentences ?? {},
+    dictationInputs: data.dictationInputs ?? {},
     totalSentences: data.totalSentences ?? 0,
     createdAt: data.createdAt ?? Date.now(),
     lastAccessed: data.lastAccessed ?? Date.now(),
@@ -151,6 +171,35 @@ export const saveLessonFirestore = async (lesson: LessonRecord): Promise<void> =
   const uid = getCurrentUidOrThrow();
   const payload = toFirestoreLessonRecord(lesson);
   await setDoc(getLessonDocRef(uid, lesson.id), payload);
+};
+
+/**
+ * Patch only `flashcardData.completionModalShown` (plus `updatedAt`).
+ * Prefer this over read + saveLessonFirestore after deck completion: a full setDoc from a stale
+ * read can race with the async last-card rating persist and drop the final "done" in Firestore.
+ */
+export const patchFlashcardCompletionModalShownFirestore = async (
+  lessonId: string,
+  completionModalShown: boolean
+): Promise<void> => {
+  const uid = getCurrentUidOrThrow();
+  await updateDoc(getLessonDocRef(uid, lessonId), {
+    'flashcardData.completionModalShown': completionModalShown,
+    updatedAt: Date.now(),
+  });
+};
+
+/** Patch a single flashcard rating without rewriting the whole lesson (avoids setDoc races). */
+export const patchFlashcardRatingFirestore = async (
+  lessonId: string,
+  lineIndex: number,
+  rating: 'again' | 'good' | 'done'
+): Promise<void> => {
+  const uid = getCurrentUidOrThrow();
+  await updateDoc(getLessonDocRef(uid, lessonId), {
+    [`flashcardData.ratings.${lineIndex}`]: rating,
+    updatedAt: Date.now(),
+  });
 };
 
 export const getLessonFirestore = async (id: string): Promise<LessonRecord | null> => {
@@ -223,14 +272,19 @@ export const deleteLessonFirestore = async (id: string): Promise<void> => {
 
 export const updateLessonProgressFirestore = async (
   id: string,
-  completedSentences: Record<number, boolean>
+  completedSentences: Record<number, boolean>,
+  options?: { dictationInputs?: Record<number, string> }
 ): Promise<void> => {
   const uid = getCurrentUidOrThrow();
-  await updateDoc(getLessonDocRef(uid, id), {
+  const patch: Record<string, unknown> = {
     completedSentences,
     lastAccessed: Date.now(),
     updatedAt: Date.now(),
-  });
+  };
+  if (options?.dictationInputs !== undefined) {
+    patch.dictationInputs = options.dictationInputs;
+  }
+  await updateDoc(getLessonDocRef(uid, id), patch);
 };
 
 export const trashLessonFirestore = async (id: string): Promise<void> => {

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/auth/firebase-client";
 
@@ -63,21 +65,22 @@ export function LoginView({ appName, subtitle }: LoginViewProps) {
           </p>
         </div>
 
-        <button
+        <Button
           type="button"
-          className="inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}
+          variant="default"
+          className="h-11 w-full text-sm font-semibold"
           disabled={loading}
           onClick={() => void onGoogleSignIn()}
         >
           {loading ? "Signing in..." : "Continue with Google"}
-        </button>
+        </Button>
 
         {error ? (
-          <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-left text-sm text-red-400">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>{error}</p>
-          </div>
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertTitle>Sign-in failed</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         ) : null}
       </section>
     </div>

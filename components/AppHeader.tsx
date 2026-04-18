@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { PanelLeft, Trash2, MoreVertical, Edit2, ChevronDown } from 'lucide-react';
+import React, { type RefObject } from 'react';
+import { PanelLeft, Trash2, MoreVertical, Edit2 } from 'lucide-react';
 import type { AppMode, LessonItem, DeckItem } from '@/types';
+import { cn } from '@/lib/utils';
 
 export type HeaderSelectedItem = {
   id: string;
@@ -25,6 +26,12 @@ export interface AppHeaderProps {
   onDeleteCurrent: () => void;
 }
 
+const MODE_TABS: { mode: AppMode; label: string }[] = [
+  { mode: 'normal', label: 'Normal' },
+  { mode: 'dictation', label: 'Dictation' },
+  { mode: 'shadowing', label: 'Shadowing' },
+];
+
 export function AppHeader({
   isSidebarOpen,
   onOpenSidebar,
@@ -38,35 +45,6 @@ export function AppHeader({
   onRenameCurrent,
   onDeleteCurrent,
 }: AppHeaderProps) {
-  const [modeMenuOpen, setModeMenuOpen] = useState(false);
-  const modeMenuRef = useRef<HTMLDivElement | null>(null);
-  const modeButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (!modeMenuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (modeMenuRef.current?.contains(t)) return;
-      setModeMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [modeMenuOpen]);
-
-  const modeLabel = useMemo(() => {
-    if (appMode === 'dictation') return 'Dictation';
-    if (appMode === 'shadowing') return 'Shadowing';
-    return 'Normal';
-  }, [appMode]);
-
-  const modeChoices = useMemo(
-    () =>
-      (['normal', 'dictation', 'shadowing'] as AppMode[]).filter(
-        (mode) => mode !== appMode
-      ),
-    [appMode]
-  );
-
   return (
     <header className="app-header">
       <div className="header-left">
@@ -84,48 +62,19 @@ export function AppHeader({
 
       {selectedItem?.type === 'lesson' && !isMobile && (
         <div className="mode-tabs-container">
-          <div ref={modeMenuRef} className="relative">
-            <button
-              ref={modeButtonRef}
-              type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900/80 px-3 py-1.5 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-colors"
-              aria-haspopup="menu"
-              aria-expanded={modeMenuOpen}
-              onClick={() => setModeMenuOpen((v) => !v)}
-            >
-              <span>{modeLabel}</span>
-              <ChevronDown size={16} className={modeMenuOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
-            </button>
-            {modeMenuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 mt-2 w-40 rounded-lg border border-gray-700 bg-gray-800 py-1 shadow-xl z-30"
+          <nav className="mode-tabs" aria-label="Lesson mode">
+            {MODE_TABS.map(({ mode, label }) => (
+              <button
+                key={mode}
+                type="button"
+                className={cn('mode-tab', appMode === mode && 'active')}
+                aria-current={appMode === mode ? 'page' : undefined}
+                onClick={() => void onModeChange(mode)}
               >
-                {modeChoices.map((mode) => {
-                  const label =
-                    mode === 'dictation'
-                      ? 'Dictation'
-                      : mode === 'shadowing'
-                        ? 'Shadowing'
-                        : 'Normal';
-                  return (
-                    <button
-                      key={mode}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setModeMenuOpen(false);
-                        void onModeChange(mode);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700"
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                {label}
+              </button>
+            ))}
+          </nav>
         </div>
       )}
 

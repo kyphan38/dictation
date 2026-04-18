@@ -56,6 +56,7 @@ export function useLessonCreateFlow(
           mediaType: data.mediaType,
           transcriptText: text,
           completedSentences: {},
+          dictationInputs: {},
           totalSentences: sentences.length,
           createdAt: now,
           lastAccessed: now,

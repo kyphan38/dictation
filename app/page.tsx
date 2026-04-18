@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { normalizeDictationTarget } from '@/lib/utils';
-import { restoreLessonFirestore, trashLessonFirestore } from '@/lib/db';
+import { patchFlashcardCompletionModalShownFirestore, restoreLessonFirestore, trashLessonFirestore } from '@/lib/db';
 import { LoginView } from '@/components/auth/LoginView';
 import { Sidebar } from '@/components/Sidebar';
 import { NewLessonModal } from '@/components/NewLessonModal';
@@ -28,11 +28,21 @@ import { WelcomeScreen } from '@/components/WelcomeScreen';
 import { Toast } from '@/components/Toast';
 import { getFirebaseAuth } from '@/lib/auth/firebase-client';
 import { hasAllowlistConfig, isAllowedUser } from '@/lib/auth/allowed-user';
+import { buildItemSearchString, parseItemFromSearch } from '@/lib/item-url';
 
-function pushItemHistoryState(id: string, type: 'lesson' | 'deck') {
+function pushItemHistoryState(
+  row: {
+    id: string;
+    name: string;
+    kind: 'audio' | 'flashcard';
+  }
+) {
+  const qs = buildItemSearchString(row);
   const url = new URL(window.location.href);
-  if (url.searchParams.get('item') === id) return;
-  window.history.pushState({ itemId: id, itemType: type }, '', `?item=${encodeURIComponent(id)}`);
+  const cur = url.search.startsWith('?') ? url.search.slice(1) : url.search;
+  if (cur === qs) return;
+  const itemType = row.kind === 'flashcard' ? 'deck' : 'lesson';
+  window.history.pushState({ itemId: row.id, itemType }, '', `${url.pathname}?${qs}`);
 }
 
 export default function NodaApp() {
@@ -54,6 +64,11 @@ export default function NodaApp() {
     type: 'lesson' | 'deck';
     data: LessonItem | DeckItem;
   } | null>(null);
+
+  /** Bumps when a flashcard row is selected so reopening the same deck remounts the viewer (cleanup modal can show again). */
+  const [deckOpenGeneration, setDeckOpenGeneration] = useState(0);
+  /** Bumps after persisting deck-only metadata so FlashcardViewer reloads hydrate (e.g. completionModalShown). */
+  const [deckHydrateBump, setDeckHydrateBump] = useState(0);
 
   const urlHydratedRef = useRef(false);
   const mobileSidebarInitialCloseRef = useRef(false);
@@ -87,6 +102,16 @@ export default function NodaApp() {
 
   const selectedItemRef = useRef(selectedItem);
   selectedItemRef.current = selectedItem;
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const transcriptScrollByItemIdRef = useRef<Map<string, number>>(new Map());
+
+  const saveTranscriptScrollForCurrentLesson = useCallback(() => {
+    const cur = selectedItemRef.current;
+    if (cur?.type === 'lesson' && scrollContainerRef.current) {
+      transcriptScrollByItemIdRef.current.set(cur.id, scrollContainerRef.current.scrollTop);
+    }
+  }, []);
 
   const handleModeChange = useCallback(
     async (mode: AppMode) => {
@@ -155,9 +180,10 @@ export default function NodaApp() {
   );
 
   const handleNewLessonWrapper = useCallback(() => {
+    saveTranscriptScrollForCurrentLesson();
     handleNewLesson();
     setSelectedItem(null);
-  }, [handleNewLesson]);
+  }, [handleNewLesson, saveTranscriptScrollForCurrentLesson]);
 
   const openNewLessonModal = () => {
     handleNewLessonWrapper();
@@ -187,6 +213,7 @@ export default function NodaApp() {
       },
       opts?: { pushHistory?: boolean }
     ) => {
+      saveTranscriptScrollForCurrentLesson();
       const pushHistory = opts?.pushHistory !== false;
       if (row.kind === 'flashcard') {
         const deck: DeckItem = {
@@ -198,9 +225,10 @@ export default function NodaApp() {
           type: 'deck',
         };
         expandSidebarForItem('flashcard', row.language);
+        setDeckOpenGeneration((g) => g + 1);
         setSelectedItem({ id: row.id, type: 'deck', data: deck });
         void handleLoadLesson(row.id);
-        if (pushHistory) pushItemHistoryState(row.id, 'deck');
+        if (pushHistory) pushItemHistoryState(row);
         return;
       }
 
@@ -218,9 +246,9 @@ export default function NodaApp() {
 
       void handleLoadLesson(row.id);
       void handleModeChange('normal');
-      if (pushHistory) pushItemHistoryState(row.id, 'lesson');
+      if (pushHistory) pushItemHistoryState(row);
     },
-    [expandSidebarForItem, handleLoadLesson, handleModeChange]
+    [expandSidebarForItem, handleLoadLesson, handleModeChange, saveTranscriptScrollForCurrentLesson]
   );
 
   const handleItemSelect = (item: LessonItem | DeckItem) => {
@@ -292,15 +320,17 @@ export default function NodaApp() {
     if (isListLoading) return;
     if (urlHydratedRef.current) return;
     urlHydratedRef.current = true;
-    const id = new URLSearchParams(window.location.search).get('item');
-    if (!id) return;
+    const parsed = parseItemFromSearch(window.location.search);
+    if (!parsed) return;
+    const id = parsed.id;
     const row = lessonsListRef.current.find((l) => l.id === id && !l.isTrashed);
     if (!row) return;
     applySelectionFromRow(row, { pushHistory: false });
+    const qs = buildItemSearchString(row);
     window.history.replaceState(
       { itemId: row.id, itemType: row.kind === 'flashcard' ? 'deck' : 'lesson' },
       '',
-      `?item=${encodeURIComponent(row.id)}`
+      `${window.location.pathname}?${qs}`
     );
   }, [isListLoading, lessonsList, applySelectionFromRow]);
 
@@ -354,7 +384,6 @@ export default function NodaApp() {
   };
 
   const activeSentenceRef = useRef<Sentence | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const lastScrolledIndexRef = useRef<number>(-1);
 
   const togglePlayPauseLesson = useCallback(() => {
@@ -387,6 +416,18 @@ export default function NodaApp() {
     cleanupModalVariant,
     setCleanupModalVariant,
   } = useDictationCompletionModal(selectedItem, isStarted, transcript, appMode, completedSentences);
+
+  const handleCleanupKeep = useCallback(async () => {
+    if (cleanupModalVariant === 'deck' && selectedItem?.type === 'deck') {
+      try {
+        await patchFlashcardCompletionModalShownFirestore(selectedItem.id, true);
+        setDeckHydrateBump((v) => v + 1);
+      } catch {
+        setToast({ message: 'Could not save deck preference.', type: 'error' });
+      }
+    }
+    setShowCleanupModal(false);
+  }, [cleanupModalVariant, selectedItem, setShowCleanupModal, setToast]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -437,6 +478,18 @@ export default function NodaApp() {
   );
 
   useAutoScrollActiveSentence(currentTime, transcript, scrollContainerRef, lastScrolledIndexRef);
+
+  useLayoutEffect(() => {
+    if (selectedItem?.type !== 'lesson' || transcript.length === 0) return;
+    const id = selectedItem.id;
+    const saved = transcriptScrollByItemIdRef.current.get(id);
+    if (saved === undefined) return;
+    lastScrolledIndexRef.current = -1;
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollTop = saved;
+    }
+  }, [selectedItem?.id, selectedItem?.type, transcript.length]);
 
   const handleSkip = (sentence: Sentence) => {
     setCompletedSentences((prev) => {
@@ -677,12 +730,14 @@ export default function NodaApp() {
 
             {selectedItem?.type === 'deck' && (
               <FlashcardViewer
+                key={`${selectedItem.id}-${deckOpenGeneration}`}
                 deck={selectedItem.data as DeckItem}
+                deckHydrateBump={deckHydrateBump}
                 onComplete={() => {
                   setCleanupModalVariant('deck');
                   setShowCleanupModal(true);
                 }}
-                onDeckUpdated={() => {}}
+                onPersistError={(message) => setToast({ message, type: 'error' })}
               />
             )}
           </div>
@@ -711,7 +766,8 @@ export default function NodaApp() {
       <CleanupModal
         isOpen={showCleanupModal}
         variant={cleanupModalVariant}
-        onKeep={() => setShowCleanupModal(false)}
+        onKeep={() => void handleCleanupKeep()}
+        onDismiss={cleanupModalVariant === 'deck' ? () => setShowCleanupModal(false) : undefined}
         onRemoveAudio={
           cleanupModalVariant === 'lesson'
             ? async () => {

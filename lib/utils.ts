@@ -65,7 +65,7 @@ export function normalizeDictationTarget(
   return out;
 }
 
-/** Sidebar % for flashcard decks: cards last rated Done / total lines. */
+/** Sidebar % for flashcard decks: matches session queue — permanently done cards / total lines. */
 export function flashcardDeckProgressPercent(
   flashcardData: { lines?: string[]; ratings?: Record<number, string> } | undefined,
   totalSentences: number
@@ -76,7 +76,11 @@ export function flashcardDeckProgressPercent(
       : totalSentences;
   if (linesLen <= 0) return 0;
   const ratings = flashcardData?.ratings ?? {};
-  const done = Object.values(ratings).filter((r) => r === 'done').length;
+  let notDone = 0;
+  for (let i = 0; i < linesLen; i++) {
+    if (ratings[i] !== 'done') notDone += 1;
+  }
+  const done = linesLen - notDone;
   return Math.round(Math.min(100, (done / linesLen) * 100));
 }
 
@@ -153,6 +157,8 @@ export const compareSentences = (target: string, spoken: string) => {
 };
 
 export const getNextPlaybackSpeed = (currentSpeed: number) => {
-  const currentIndex = PLAYBACK_SPEEDS.indexOf(currentSpeed as any);
-  return PLAYBACK_SPEEDS[(currentIndex + 1) % PLAYBACK_SPEEDS.length];
+  const speeds = PLAYBACK_SPEEDS as readonly number[];
+  let idx = speeds.indexOf(currentSpeed);
+  if (idx < 0) idx = 0;
+  return PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length];
 };

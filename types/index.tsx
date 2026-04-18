@@ -66,7 +66,7 @@ export interface LessonItem {
   progress: number; // 0-100
   hasMedia: boolean;
   mediaType: 'audio' | 'video';
-  type: 'lesson'; // CRITICAL: để phân biệt với deck
+  type: 'lesson'; // CRITICAL: discriminant vs deck
 }
 
 export interface DeckItem {
@@ -76,7 +76,7 @@ export interface DeckItem {
   cardCount: number;
   /** Cards marked Done / total (persisted), same scale as lesson sidebar progress. */
   progress: number;
-  type: 'deck'; // CRITICAL: để phân biệt với lesson
+  type: 'deck'; // CRITICAL: discriminant vs lesson
 }
 
 export interface TrashItem {

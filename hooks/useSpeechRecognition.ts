@@ -3,13 +3,37 @@ import { Sentence, SpokenResult } from '@/types';
 import { DEFAULT_RECOGNITION_LANG } from '@/constants';
 import { compareSentences } from '@/lib/utils';
 
+/** Narrow surface used from the Web Speech API (DOM typings vary by TS version). */
+interface WebSpeechResultEvent {
+  results: { length: number; [i: number]: { 0: { transcript: string } } };
+}
+
+interface WebSpeechErrorEvent {
+  error: string;
+}
+
+interface WebSpeechRecognition {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((ev: WebSpeechResultEvent) => void) | null;
+  onerror: ((ev: WebSpeechErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+type WebSpeechRecognitionCtor = new () => WebSpeechRecognition;
+
 export function useSpeechRecognition() {
   const [isRecording, setIsRecording] = useState<number | null>(null);
   const [recognitionLang, setRecognitionLang] = useState<string>(DEFAULT_RECOGNITION_LANG);
   const [spokenResults, setSpokenResults] = useState<Record<number, SpokenResult>>({});
   const [recognitionErrors, setRecognitionErrors] = useState<Record<number, string>>({});
   
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<WebSpeechRecognition | null>(null);
 
   const toggleRecording = (sentence: Sentence) => {
     if (isRecording === sentence.id) {
@@ -28,13 +52,22 @@ export function useSpeechRecognition() {
       return next;
     });
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setRecognitionErrors(prev => ({ ...prev, [sentence.id]: "Trình duyệt của bạn không hỗ trợ Web Speech API. Vui lòng sử dụng Chrome hoặc Edge." }));
+    const w = window as Window &
+      typeof globalThis & {
+        SpeechRecognition?: WebSpeechRecognitionCtor;
+        webkitSpeechRecognition?: WebSpeechRecognitionCtor;
+      };
+    const SpeechRecognitionCtor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      setRecognitionErrors(prev => ({
+        ...prev,
+        [sentence.id]:
+          'This browser does not support the Web Speech API. Try Chrome or Edge.',
+      }));
       return;
     }
 
-    const recognition = new SpeechRecognition();
+    const recognition = new SpeechRecognitionCtor();
     recognition.lang = recognitionLang;
     recognition.interimResults = false;
     recognition.continuous = true;
@@ -44,7 +77,7 @@ export function useSpeechRecognition() {
 
     recognition.onstart = () => setIsRecording(sentence.id);
     
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: WebSpeechResultEvent) => {
       let transcript = '';
       for (let i = 0; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript + ' ';
@@ -52,13 +85,14 @@ export function useSpeechRecognition() {
       finalTranscript = transcript.trim();
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: WebSpeechErrorEvent) => {
       console.error("Speech recognition error", event.error);
-      let errMsg = `Lỗi nhận diện (${event.error}).`;
+      let errMsg = `Recognition error (${event.error}).`;
       if (event.error === 'network') {
-        errMsg = "Lỗi mạng (Network Error): Trình duyệt không thể kết nối đến dịch vụ nhận diện của Google. Hãy thử mở app ở Tab mới (Open in new tab) hoặc tắt chế độ ẩn danh.";
+        errMsg =
+          'Network error: the browser could not reach the speech service. Try opening the app in a new tab or turning off private browsing.';
       } else if (event.error === 'not-allowed') {
-        errMsg = "Lỗi quyền: Vui lòng cho phép sử dụng Microphone trên trình duyệt.";
+        errMsg = 'Permission denied: allow microphone access for this site in your browser settings.';
       }
       setRecognitionErrors(prev => ({ ...prev, [sentence.id]: errMsg }));
       setIsRecording(null);

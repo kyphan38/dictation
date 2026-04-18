@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Layers, Upload } from 'lucide-react';
 import { isLessonNameTaken } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export interface DeckData {
   name: string;
@@ -88,8 +91,24 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
       <div className="app-modal-panel bg-gray-800 rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-700/80">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">🎴 New Deck</h2>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-gray-400 hover:text-white"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </Button>
         </div>
+
+        {uploadedFileNameConflict ? (
+          <Alert variant="warning" className="mb-4">
+            <AlertTitle>Name already in use</AlertTitle>
+            <AlertDescription>{uploadedFileNameConflict}</AlertDescription>
+          </Alert>
+        ) : null}
 
         <div className="space-y-6">
           <div>
@@ -145,11 +164,6 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
                 autoCapitalize="off"
               />
             </div>
-            {uploadedFileNameConflict && (
-              <p className="text-sm text-amber-400 mt-2" role="alert">
-                {uploadedFileNameConflict}
-              </p>
-            )}
             <p className="text-xs text-gray-500 mt-2">Drop a .txt file onto the box above to import lines.</p>
 
             <div className="flex items-center justify-between mt-3">
@@ -160,7 +174,12 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
 
               <div className="flex items-center gap-3">
                 <p className="text-sm text-gray-500">or</p>
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-sm font-medium text-white rounded-lg cursor-pointer transition-colors">
+                <label
+                  className={cn(
+                    buttonVariants({ variant: 'secondary', size: 'sm' }),
+                    'inline-flex cursor-pointer items-center gap-2',
+                  )}
+                >
                   <Upload size={16} />
                   Upload .txt file
                   <input
@@ -174,18 +193,15 @@ export function NewDeckModal({ onClose, onSubmit, getTakenFlashcardDeckNames }: 
             </div>
           </div>
 
-          <button
+          <Button
             type="button"
-            className={`w-full py-4 rounded-xl font-bold text-lg transition-colors ${
-              deckName && cardCount > 0
-                ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-            }`}
+            variant="default"
+            className="h-auto w-full justify-center rounded-xl py-4 text-lg font-bold"
             disabled={!deckName || cardCount === 0}
             onClick={handleSubmit}
           >
             Create ({cardCount} cards)
-          </button>
+          </Button>
         </div>
       </div>
     </div>
