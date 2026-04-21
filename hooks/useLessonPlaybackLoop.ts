@@ -4,6 +4,7 @@ import type { AppMode, LoopMode, Sentence } from '@/types';
 type RefBool = MutableRefObject<boolean>;
 type RefMode = MutableRefObject<AppMode>;
 type RefCompleted = MutableRefObject<Record<number, boolean>>;
+type RefReplayOnce = MutableRefObject<{ sentenceId: number; end: number } | null>;
 
 /**
  * While audio is playing, updates current time, active sentence ref, dictation/shadowing pause-at-end, and loop-one behavior.
@@ -18,7 +19,8 @@ export function useLessonPlaybackLoop(
   loopModeRef: MutableRefObject<LoopMode>,
   appModeRef: RefMode,
   completedSentencesRef: RefCompleted,
-  activeSentenceRef: MutableRefObject<Sentence | null>
+  activeSentenceRef: MutableRefObject<Sentence | null>,
+  replayOnceRef: RefReplayOnce
 ) {
   useEffect(() => {
     let animationFrameId: number;
@@ -51,6 +53,15 @@ export function useLessonPlaybackLoop(
                   isLoopDelayingRef.current = false;
                 }, 500);
               }
+            } else if (
+              appModeRef.current === 'dictation' &&
+              replayOnceRef.current &&
+              replayOnceRef.current.sentenceId === activeSentenceRef.current.id
+            ) {
+              // Dictation: when user replays a completed sentence (Ctrl), stop at end and clear replay lock.
+              audioRef.current.pause();
+              audioRef.current.currentTime = replayOnceRef.current.end - 0.05;
+              replayOnceRef.current = null;
             } else if (appModeRef.current === 'dictation' && !isCompleted) {
               audioRef.current.pause();
               audioRef.current.currentTime = activeSentenceRef.current.end - 0.05;
@@ -82,5 +93,6 @@ export function useLessonPlaybackLoop(
     completedSentencesRef,
     audioRef,
     activeSentenceRef,
+    replayOnceRef,
   ]);
 }

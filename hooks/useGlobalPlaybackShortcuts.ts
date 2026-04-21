@@ -16,7 +16,8 @@ export function useGlobalPlaybackShortcuts(
   loopTimeoutRef: MutableRefObject<ReturnType<typeof setTimeout> | null>,
   isLoopDelayingRef: MutableRefObject<boolean>,
   audioRef: RefObject<HTMLMediaElement | null>,
-  activeSentenceRef: MutableRefObject<Sentence | null>
+  activeSentenceRef: MutableRefObject<Sentence | null>,
+  replayOnceRef: MutableRefObject<{ sentenceId: number; end: number } | null>
 ) {
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -79,6 +80,9 @@ export function useGlobalPlaybackShortcuts(
           isLoopDelayingRef.current = false;
         }
         if (audioRef.current && activeSentenceRef.current) {
+          if (appMode === 'dictation') {
+            replayOnceRef.current = { sentenceId: activeSentenceRef.current.id, end: activeSentenceRef.current.end };
+          }
           audioRef.current.currentTime = activeSentenceRef.current.start;
           audioRef.current.play().catch(() => {});
         }
@@ -98,5 +102,6 @@ export function useGlobalPlaybackShortcuts(
     toggleHideCaptions,
     handleModeChange,
     activeSentenceRef,
+    replayOnceRef,
   ]);
 }

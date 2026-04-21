@@ -105,6 +105,7 @@ export default function NodaApp() {
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const transcriptScrollByItemIdRef = useRef<Map<string, number>>(new Map());
+  const dictationReplayOnceRef = useRef<{ sentenceId: number; end: number } | null>(null);
 
   const saveTranscriptScrollForCurrentLesson = useCallback(() => {
     const cur = selectedItemRef.current;
@@ -461,7 +462,8 @@ export default function NodaApp() {
     loopTimeoutRef,
     isLoopDelayingRef,
     mediaRef,
-    activeSentenceRef
+    activeSentenceRef,
+    dictationReplayOnceRef
   );
 
   useLessonPlaybackLoop(
@@ -474,7 +476,8 @@ export default function NodaApp() {
     loopModeRef,
     appModeRef,
     completedSentencesRef,
-    activeSentenceRef
+    activeSentenceRef,
+    dictationReplayOnceRef
   );
 
   useAutoScrollActiveSentence(currentTime, transcript, scrollContainerRef, lastScrolledIndexRef);
@@ -536,6 +539,15 @@ export default function NodaApp() {
         clearTimeout(loopTimeoutRef.current);
         isLoopDelayingRef.current = false;
       }
+      // After completion, stay on the current sentence. Advancing happens only on Enter.
+    }
+  };
+
+  const handleDictationKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, sentence: Sentence) => {
+    if (e.key === 'Enter') {
+      const isCompleted = !!completedSentencesRef.current[sentence.id];
+      if (!isCompleted) return;
+      e.preventDefault();
 
       const idx = transcript.findIndex((s) => s.id === sentence.id);
       const nextSentence = idx >= 0 && idx < transcript.length - 1 ? transcript[idx + 1] : null;
@@ -545,16 +557,18 @@ export default function NodaApp() {
           mediaRef.current.currentTime = nextSentence.start;
           setCurrentTime(nextSentence.start);
           lastScrolledIndexRef.current = -1;
+          mediaRef.current.play().catch(() => {});
         } else {
+          // last sentence: park at end
           mediaRef.current.currentTime = sentence.end + 0.05;
           setCurrentTime(sentence.end + 0.05);
+          mediaRef.current.pause();
+          setIsPlaying(false);
         }
-        mediaRef.current.play().catch(() => {});
       }
+      return;
     }
-  };
 
-  const handleDictationKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, sentence: Sentence) => {
     if (e.key === 'Tab') {
       e.preventDefault();
       const t = normalizeDictationTarget(sentence.text);
@@ -573,6 +587,8 @@ export default function NodaApp() {
         isLoopDelayingRef.current = false;
       }
       if (mediaRef.current) {
+        // Dictation: replay just this sentence (even if already completed).
+        dictationReplayOnceRef.current = { sentenceId: sentence.id, end: sentence.end };
         mediaRef.current.currentTime = sentence.start;
         mediaRef.current.play().catch(() => {});
       }

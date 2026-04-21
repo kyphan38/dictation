@@ -56,6 +56,18 @@ export function DictationControls({
             </button>
           )}
         </div>
+        {isActive && (
+          <input
+            type="text"
+            autoFocus
+            readOnly
+            aria-label="Press Enter to continue"
+            value={dictationInput}
+            onKeyDown={(e) => onDictationKeyDown(e, sentence)}
+            onClick={(e) => e.stopPropagation()}
+            className="sr-only"
+          />
+        )}
       </div>
     );
   }
