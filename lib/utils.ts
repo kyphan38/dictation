@@ -18,7 +18,7 @@ export const getLetters = (text: string) => {
 };
 
 /** Ensure `base` does not collide with existing names (case-insensitive); appends " (1)", " (2)", … */
-/** True if `base` (trimmed) collides with any name in `existingNames`, case-insensitive — same rule as {@link uniquifyName}. */
+/** True if `base` (trimmed) collides with any name in `existingNames`, case-insensitive - same rule as {@link uniquifyName}. */
 export function isLessonNameTaken(base: string, existingNames: string[]): boolean {
   const t = base.trim();
   if (!t) return false;
@@ -65,7 +65,7 @@ export function normalizeDictationTarget(
   return out;
 }
 
-/** Sidebar % for flashcard decks: matches session queue — permanently done cards / total lines. */
+/** Sidebar % for flashcard decks: matches session queue - permanently done cards / total lines. */
 export function flashcardDeckProgressPercent(
   flashcardData: { lines?: string[]; ratings?: Record<number, string> } | undefined,
   totalSentences: number

@@ -85,7 +85,7 @@ function FlashcardDeckPlay({
           await patchFlashcardRatingFirestore(deckId, lineIndex, rating);
         } catch (err) {
           console.error('Flashcard persist failed', err);
-          onPersistError?.('Could not save progress — try again.');
+          onPersistError?.('Could not save progress - try again.');
         }
       })();
     },
@@ -112,7 +112,7 @@ function FlashcardDeckPlay({
         onShufflePersisted();
       } catch (err) {
         console.error('Flashcard shuffle persist failed', err);
-        onPersistError?.('Could not save shuffle preference — try again.');
+        onPersistError?.('Could not save shuffle preference - try again.');
       }
     })();
   }, [deckId, lines.length, hydrate.isShuffled, onPersistError, onShufflePersisted]);
@@ -241,7 +241,7 @@ export function FlashcardViewer({ deck, deckHydrateBump = 0, onComplete, onPersi
         lesson.flashcardData?.lines && lesson.flashcardData.lines.length > 0
           ? lesson.flashcardData.lines
           : lines;
-      // Do not spread previous flashcardData — merged fields can include `undefined`,
+      // Do not spread previous flashcardData - merged fields can include `undefined`,
       // which Firestore rejects on setDoc ("Unsupported field value: undefined").
       lesson.flashcardData = {
         lines: baseLines,
@@ -273,7 +273,7 @@ export function FlashcardViewer({ deck, deckHydrateBump = 0, onComplete, onPersi
         setDataEpoch((e) => e + 1);
       } catch (err) {
         console.error('Flashcard hydrate after shuffle failed', err);
-        onPersistError?.('Could not refresh deck — try again.');
+        onPersistError?.('Could not refresh deck - try again.');
       }
     })();
   }, [deck.id, lines.length, onPersistError]);

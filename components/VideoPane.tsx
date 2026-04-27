@@ -4,7 +4,7 @@ import React, { forwardRef } from 'react';
 
 export interface VideoPaneProps {
   src: string | undefined;
-  /** When true, video is visually hidden but stays in DOM (fixed 1px pin — Safari-friendly, avoids clipping controls). */
+  /** When true, video is visually hidden but stays in DOM (fixed 1px pin - Safari-friendly, avoids clipping controls). */
   videoHidden: boolean;
   onLoadedMetadata?: (e: React.SyntheticEvent<HTMLVideoElement>) => void;
   onEnded?: () => void;

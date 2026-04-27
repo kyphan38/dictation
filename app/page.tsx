@@ -351,7 +351,7 @@ export default function NodaApp() {
 
   // Revoke blob URLs whenever mediaURL changes or the app unmounts. handleLoadLesson / handleNewLesson
   // and other paths call setMediaURL without revoking the previous URL; handleMediaUpload revokes in its
-  // setter — a second revoke on the same URL is harmless (no-op per spec).
+  // setter - a second revoke on the same URL is harmless (no-op per spec).
   useEffect(() => {
     return () => {
       if (mediaURL) URL.revokeObjectURL(mediaURL);
