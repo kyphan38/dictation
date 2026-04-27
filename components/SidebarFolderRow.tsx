@@ -68,34 +68,29 @@ export function SidebarFolderRow({
 
   return (
     <div className={`${indent} group relative rounded-md`}>
-      {folderDrag?.enabled ? (
-        <span
-          draggable
-          role="button"
-          tabIndex={-1}
-          aria-label="Drag folder"
-          title="Drag folder"
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-7 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100"
-          onDragStart={(e) => {
-            e.stopPropagation();
-            folderDrag.onDragStart(e);
-          }}
-          onDragEnd={(e) => {
-            e.stopPropagation();
-            folderDrag.onDragEnd?.();
-          }}
-        >
-          <span className="block w-full h-full" aria-hidden />
-        </span>
-      ) : null}
       <div
         className={`flex items-center gap-1.5 min-w-0 ${rowPadding} py-1.5 rounded-md hover:bg-gray-800/40 transition-colors`}
+        draggable={folderDrag?.enabled ?? false}
+        onDragStart={(e) => {
+          if (!folderDrag?.enabled) return;
+          const t = e.target as HTMLElement | null;
+          if (t?.closest('[data-noda-no-drag="true"]')) {
+            e.preventDefault();
+            return;
+          }
+          folderDrag.onDragStart(e);
+        }}
+        onDragEnd={() => {
+          if (!folderDrag?.enabled) return;
+          folderDrag.onDragEnd?.();
+        }}
       >
         <button
           type="button"
           onClick={() => onToggleExpanded(!isExpanded)}
           className="shrink-0 text-gray-500 hover:text-gray-200"
           aria-label={isExpanded ? 'Collapse folder' : 'Expand folder'}
+          data-noda-no-drag="true"
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
@@ -135,14 +130,9 @@ export function SidebarFolderRow({
             />
           </form>
         ) : (
-          <button
-            type="button"
-            onClick={() => onToggleExpanded(!isExpanded)}
-            className="min-w-0 flex-1 text-left"
-            title={folder.name}
-          >
+          <div className="min-w-0 flex-1" title={folder.name}>
             <span className="block truncate text-xs font-medium text-gray-200">{folder.name}</span>
-          </button>
+          </div>
         )}
 
         {!isExpanded && badgeCount > 0 && (
@@ -164,6 +154,7 @@ export function SidebarFolderRow({
               : 'text-gray-400 opacity-0 group-hover:opacity-100 hover:text-white focus-visible:opacity-100'
           }`}
           aria-label="Folder actions"
+          data-noda-no-drag="true"
         >
           <MoreVertical size={14} />
         </button>
