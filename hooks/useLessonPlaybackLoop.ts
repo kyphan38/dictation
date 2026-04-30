@@ -41,7 +41,7 @@ export function useLessonPlaybackLoop(
         if (activeSentenceRef.current) {
           const isCompleted = completedSentencesRef.current[activeSentenceRef.current.id];
 
-          if (time >= activeSentenceRef.current.end - 0.01) {
+          if (time >= activeSentenceRef.current.end - 0.03) {
             if (loopModeRef.current === 'one') {
               if (!isLoopDelayingRef.current) {
                 isLoopDelayingRef.current = true;
@@ -68,10 +68,10 @@ export function useLessonPlaybackLoop(
               replayOnceRef.current = null;
             } else if (appModeRef.current === 'dictation' && !isCompleted) {
               audioRef.current.pause();
-              audioRef.current.currentTime = activeSentenceRef.current.end - 0.01;
+              audioRef.current.currentTime = activeSentenceRef.current.end - 0.03;
             } else if (appModeRef.current === 'shadowing') {
               audioRef.current.pause();
-              audioRef.current.currentTime = activeSentenceRef.current.end - 0.01;
+              audioRef.current.currentTime = activeSentenceRef.current.end - 0.03;
             }
           }
         }
