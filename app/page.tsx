@@ -637,6 +637,9 @@ export default function NodaApp() {
 
       if (mediaRef.current) {
         if (nextSentence) {
+          if (!completedSentencesRef.current[nextSentence.id]) {
+            dictationReplayOnceRef.current = { sentenceId: nextSentence.id, end: nextSentence.end };
+          }
           mediaRef.current.currentTime = nextSentence.start;
           setCurrentTime(nextSentence.start);
           lastScrolledIndexRef.current = -1;

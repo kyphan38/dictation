@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { Sentence } from '@/types';
 import { normalizeDictationTarget } from '@/lib/utils';
@@ -27,6 +27,18 @@ export function DictationControls({
 }: DictationControlsProps) {
   const targetNorm = normalizeDictationTarget(sentence.text);
   const inputNorm = normalizeDictationTarget(dictationInput, { preserveTrailingSpace: true });
+
+  const mainInputRef = useRef<HTMLInputElement>(null);
+  const srOnlyRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (isCompleted) {
+      srOnlyRef.current?.focus({ preventScroll: true });
+    } else {
+      mainInputRef.current?.focus({ preventScroll: true });
+    }
+  }, [isCompleted, isActive, sentence.id]);
 
   if (isCompleted) {
     return (
@@ -58,14 +70,14 @@ export function DictationControls({
         </div>
         {isActive && (
           <input
+            ref={srOnlyRef}
             type="text"
-            autoFocus
             readOnly
             aria-label="Press Enter to continue"
             value={dictationInput}
             onKeyDown={(e) => onDictationKeyDown(e, sentence)}
             onClick={(e) => e.stopPropagation()}
-            className="sr-only"
+            className="fixed top-0 left-0 w-px h-px opacity-0 overflow-hidden pointer-events-none border-0"
           />
         )}
       </div>
@@ -115,8 +127,8 @@ export function DictationControls({
       </div>
       {isActive && (
         <input
+          ref={mainInputRef}
           type="text"
-          autoFocus
           data-dictation-input
           value={dictationInput}
           onChange={(e) => onDictationChange(sentence, e.target.value)}

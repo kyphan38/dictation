@@ -15,7 +15,15 @@ export function useAutoScrollActiveSentence(
     if (activeIndex !== -1 && activeIndex !== lastScrolledIndexRef.current && scrollContainerRef.current) {
       const activeElement = scrollContainerRef.current.querySelector(`[data-index="${activeIndex}"]`);
       if (activeElement) {
-        activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const container = scrollContainerRef.current;
+        const el = activeElement as HTMLElement;
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const targetScrollTop =
+          container.scrollTop +
+          (elRect.top - containerRect.top) -
+          (container.clientHeight - el.offsetHeight) / 2;
+        container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
         lastScrolledIndexRef.current = activeIndex;
       }
     }

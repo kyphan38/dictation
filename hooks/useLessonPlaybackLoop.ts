@@ -38,7 +38,18 @@ export function useLessonPlaybackLoop(
           activeSentenceRef.current = null;
         }
 
-        if (activeSentenceRef.current) {
+        // ReplayOnce check is intentionally outside activeSentenceRef so it catches
+        // the "overshoot" case where rAF timing caused the audio to skip past sentence.end
+        // and activeSentenceRef has already moved to the next sentence.
+        if (
+          appModeRef.current === 'dictation' &&
+          replayOnceRef.current &&
+          time >= replayOnceRef.current.end - 0.03
+        ) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = replayOnceRef.current.end - 0.05;
+          replayOnceRef.current = null;
+        } else if (activeSentenceRef.current) {
           const isCompleted = completedSentencesRef.current[activeSentenceRef.current.id];
 
           if (time >= activeSentenceRef.current.end - 0.03) {
@@ -57,15 +68,6 @@ export function useLessonPlaybackLoop(
                   isLoopDelayingRef.current = false;
                 }, 500);
               }
-            } else if (
-              appModeRef.current === 'dictation' &&
-              replayOnceRef.current &&
-              replayOnceRef.current.sentenceId === activeSentenceRef.current.id
-            ) {
-              // Dictation: when user replays a completed sentence (Ctrl), stop at end and clear replay lock.
-              audioRef.current.pause();
-              audioRef.current.currentTime = replayOnceRef.current.end - 0.05;
-              replayOnceRef.current = null;
             } else if (appModeRef.current === 'dictation' && !isCompleted) {
               audioRef.current.pause();
               audioRef.current.currentTime = activeSentenceRef.current.end - 0.03;
